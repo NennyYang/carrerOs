@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local secrets
+.env
+
+# Local reference repositories used for product research
+talexus-reference/
+
+# Local visual verification output
+frontend/.edge-*/
+frontend/career-os-*.png
+.verification/
