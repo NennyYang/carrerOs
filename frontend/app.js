@@ -62,6 +62,8 @@
       matchHistory: [],
       resumeScoreAnalysis: null,
       lastAnalysis: null,
+      explicitAnalysisView: false,
+      explicitHistoryView: false,
       plans: [],
       audit: [],
       searchCount: 0,
@@ -78,7 +80,9 @@
         return Object.assign(defaultSt, saved, {
           user: loadUser(),
           skills: saved.skills || seedSkills,
-          learningBacklog: []
+          learningBacklog: [],
+          explicitAnalysisView: false,
+          explicitHistoryView: false
         });
       }
       return defaultState();
@@ -753,6 +757,8 @@
       state.lastAnalysis = analysis;
       state.matchScore = analysis.match_score;
       state.matchHistory.unshift(analysis);
+      state.explicitAnalysisView = true;
+      state.explicitHistoryView = true;
       addAudit("match", "JD match analyzed by LLM: " + analysis.resumeVersionLabel + " / " + analysis.match_score);
       saveState();
       renderAll(true);
@@ -768,21 +774,43 @@
   function scoreClass(value) { return value >= 75 ? "score-high" : "score-low"; }
   function renderShieldResults() {
     var resumeAnalysis = state.resumeScoreAnalysis || state.lastAnalysis;
-    var matchAnalysis = state.lastAnalysis;
+    var matchAnalysis = state.explicitAnalysisView ? state.lastAnalysis : null;
     $("#resumeTotalScore").textContent = resumeAnalysis ? resumeAnalysis.resume_score : "--";
     $("#matchScore").textContent = matchAnalysis ? matchAnalysis.match_score : "--";
     $("#matchScoreBar").style.width = (matchAnalysis ? matchAnalysis.match_score : 0) + "%";
-    $("#resumeDimensionScores").innerHTML = resumeAnalysis ? resumeAnalysis.dimension_scores.map(function (item) {
+    $("#resumeDimensionScores").innerHTML = resumeAnalysis ? resumeAnalysis.dimension_scores.map(function (item, idx) {
       var scoreDisplay = typeof item.score === 'number' ? Math.round(item.score) : item.score;
-      return '<article class="dimension-row"><div><strong>' + escapeHtml(item.name) + '</strong></div><b class="' +
-        scoreClass(item.score) + '">' + scoreDisplay + '</b></article>';
+      var reason = escapeHtml(item.suggestion || item.reason || "");
+      var hasReason = !!reason;
+      return '<article class="dimension-row' + (hasReason ? ' is-expandable' : '') + '" data-dim-toggle="' + idx + '">' +
+        '<div class="dimension-row-main">' +
+          '<strong>' + escapeHtml(item.name) + '</strong>' +
+          '<span class="dimension-row-hint">点击查看打分理由</span>' +
+        '</div>' +
+        '<b class="' + scoreClass(item.score) + '">' + scoreDisplay + '</b>' +
+        (hasReason ? '<p class="dimension-reason" hidden>' + reason + '</p>' : '') +
+      '</article>';
     }).join("") : '<p class="alert-empty">运行一次分析以查看维度评分。</p>';
+    $$("#resumeDimensionScores .dimension-row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var reasonNode = row.querySelector(".dimension-reason");
+        if (!reasonNode) return;
+        var open = !reasonNode.hidden;
+        reasonNode.hidden = open;
+        row.classList.toggle("is-open", !open);
+      });
+    });
     $("#matchHighlights").innerHTML = matchAnalysis ? matchAnalysis.match_highlights.map(function (item) {
       return '<p>' + escapeHtml(item) + '</p>';
     }).join("") : '<p>暂无亮点。</p>';
     $("#matchGaps").innerHTML = matchAnalysis ? (matchAnalysis.match_gaps.length ? matchAnalysis.match_gaps : ["添加量化成果。"]).map(function (item) {
       return '<p>' + escapeHtml(item) + '</p>';
     }).join("") : '<p>暂无差距。</p>';
+    // 未在本会话中主动触发分析时，隐藏 JD 匹配分析面板，避免清缓存后仍然展示。
+    var matchPanel = document.querySelector(".jd-match-panel");
+    if (matchPanel) {
+      matchPanel.classList.toggle("is-hidden", !state.explicitAnalysisView);
+    }
   }
   function renderMatchHistory() {
     $("#matchHistory").innerHTML = state.matchHistory.length ? state.matchHistory.map(function (record) {
@@ -794,17 +822,40 @@
         '</td><td><button class="table-action" data-analysis="' + record.id + '">查看</button></td></tr>';
     }).join("") : '<tr><td colspan="6" class="table-empty">暂无分析历史。</td></tr>';
     $("#matchLift").textContent = state.matchHistory.length ? "最新匹配: " + state.matchHistory[0].match_score : "等待首次分析";
+    // 控制"历史分析记录"表的显隐，避免清缓存刷新后还展示旧数据。
+    var tableWrap = $("#historyTableWrap");
+    var toggleBtn = $("#historyToggle");
+    if (tableWrap) {
+      tableWrap.classList.toggle("is-hidden", !state.explicitHistoryView);
+    }
+    if (toggleBtn) {
+      var hasHistory = state.matchHistory.length > 0;
+      toggleBtn.hidden = !hasHistory || state.explicitHistoryView;
+      toggleBtn.textContent = hasHistory ? ("查看历史记录 (" + state.matchHistory.length + ")") : "查看历史记录";
+    }
     $$("[data-analysis]").forEach(function (button) {
       button.addEventListener("click", function () {
         var record = state.matchHistory.filter(function (item) { return String(item.id) === String(button.dataset.analysis); })[0];
         if (record) {
           state.lastAnalysis = record;
+          state.explicitAnalysisView = true;
+          state.explicitHistoryView = true;
           saveState();
           renderShieldResults();
+          renderMatchHistory();
           showToast("历史记录已加载");
         }
       });
     });
+    var toggle = $("#historyToggle");
+    if (toggle && !toggle.hidden && !toggle.dataset.bound) {
+      toggle.dataset.bound = "1";
+      toggle.addEventListener("click", function () {
+        state.explicitHistoryView = true;
+        saveState();
+        renderMatchHistory();
+      });
+    }
   }
 
   function renderReview() {
@@ -954,6 +1005,7 @@
         state.activeResumeId = state.resumes[0].id;
       }
       renderResumes();
+      loadStoredResumeScore();
     }).catch(function (error) {
       console.error("Resume versions list failed:", error);
       showToast("简历版本加载失败");
@@ -983,9 +1035,8 @@
           created_at: record.created_at
         };
       });
-      if (state.matchHistory.length && !state.lastAnalysis) {
-        state.lastAnalysis = state.matchHistory[0];
-      }
+      // 登录拉取历史时，不要自动把最新一条当作"当前分析"灌进面板。
+      // 避免清缓存后仍然显示，必须由用户主动点击"查看"或运行新分析才展开。
       renderMatchHistory();
       renderShieldResults();
     }).catch(function (error) {
@@ -1175,6 +1226,8 @@
     });
     $("#logoutButton").addEventListener("click", function () {
       state.user = null;
+      state.explicitAnalysisView = false;
+      state.explicitHistoryView = false;
       saveUser(null);
       saveState();
       dropdown.classList.remove("active");
@@ -1323,6 +1376,8 @@
       api.login(email, password).then(function (result) {
         if (result.success && result.user) {
           state.user = result.user;
+          state.explicitAnalysisView = false;
+          state.explicitHistoryView = false;
           saveUser(result.user);
           saveState();
           showApp();
@@ -1349,6 +1404,8 @@
       api.register(name, email, password).then(function (result) {
         if (result.success && result.user) {
           state.user = result.user;
+          state.explicitAnalysisView = false;
+          state.explicitHistoryView = false;
           saveUser(result.user);
           saveState();
           showApp();

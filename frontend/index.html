@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CareerOS</title>
-    <link rel="stylesheet" href="/frontend/styles.css?v=38" />
+    <link rel="stylesheet" href="/frontend/styles.css?v=42" />
   </head>
   <body>
     <div class="shell">
@@ -245,8 +245,14 @@
             </section>
           </section>
           <section class="match-history-panel">
-            <div class="panel-heading compact"><div><p class="overline">匹配存档</p><h3>历史分析记录</h3></div><span class="optional" id="matchLift">等待首次分析</span></div>
-            <div class="history-table-wrap">
+            <div class="panel-heading compact">
+              <div><p class="overline">匹配存档</p><h3>历史分析记录</h3></div>
+              <div class="history-head-actions">
+                <span class="optional" id="matchLift">等待首次分析</span>
+                <button type="button" class="table-action history-toggle" id="historyToggle" hidden>查看历史记录</button>
+              </div>
+            </div>
+            <div class="history-table-wrap" id="historyTableWrap">
               <table class="match-history-table">
                 <thead><tr><th>简历版本</th><th>对应岗位</th><th>综合总分</th><th>匹配分数</th><th>分析时间</th><th>操作</th></tr></thead>
                 <tbody id="matchHistory"></tbody>
@@ -364,8 +370,8 @@
       </div>
     </div>
 
-    <script src="./api.js?v=38"></script>
-    <script src="./capability-rules.js?v=38"></script>
-    <script src="./app.js?v=38"></script>
+    <script src="./api.js?v=42"></script>
+    <script src="./capability-rules.js?v=42"></script>
+    <script src="./app.js?v=42"></script>
   </body>
 </html>

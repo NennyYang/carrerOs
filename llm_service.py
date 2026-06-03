@@ -381,6 +381,12 @@ def generate_learning_suggestions_with_llm(work_content: str) -> dict:
 - priority 只能是 high、medium、low。
 - 不要编造用户没有提到的项目事实。
 
+参考示例：
+- 用户输入问题：今天在测一个ppt-skill时，模型直接卡死了，我不知道什么原因，原来时部署在一张卡上，显存不够了
+- 学习主题：模型部署相关知识
+- 描述：vllm理论知识、显卡量化部署精度kv缓存等概念，多卡并行推理，模型调优等
+- 优先级：high
+
 JSON 格式：
 {json.dumps(schema_hint, ensure_ascii=False, indent=2)}
 """.strip()
