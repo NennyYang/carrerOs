@@ -97,6 +97,21 @@ class ProjectAnalysisResponse(BaseModel):
     project_name: str = Field(default="")
 
 
+class LearningSuggestion(BaseModel):
+    title: str
+    description: str
+    priority: str = Field(pattern="^(high|medium|low)$")
+
+
+class LearningSuggestionRequest(BaseModel):
+    work_content: str = Field(min_length=1, max_length=8000)
+
+
+class LearningSuggestionResponse(BaseModel):
+    suggestions: list[LearningSuggestion] = Field(default_factory=list)
+    model: str = Field(default="")
+
+
 class CapabilityMatch(BaseModel):
     name: str
     capability_id: str = ""
@@ -225,3 +240,25 @@ class ProjectDimensionScoreRecordResponse(BaseModel):
 class ProjectDimensionScoreRequest(BaseModel):
     user_id: int
     project_id: int
+
+
+class LearningBacklogCreate(BaseModel):
+    user_id: int
+    title: str = Field(min_length=1, max_length=500)
+    added_at: Optional[datetime] = None
+
+
+class LearningBacklogResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    note: Optional[str] = None
+    tags: Optional[list[str]] = None
+    priority: str = "medium"
+    completed: bool
+    added_at: datetime
+    completed_at: Optional[datetime] = None
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

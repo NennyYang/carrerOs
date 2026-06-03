@@ -64,19 +64,34 @@
       lastAnalysis: null,
       plans: [],
       audit: [],
-      searchCount: 0
+      searchCount: 0,
+      learningSuggestions: [],
+      learningBacklog: [],
+      learningInput: ""
     };
   }
   function loadState() {
     try {
       var saved = JSON.parse(window.localStorage.getItem(storageKey) || "null");
-      return saved ? Object.assign(defaultState(), saved, { user: loadUser(), skills: saved.skills || seedSkills }) : defaultState();
+      if (saved) {
+        var defaultSt = defaultState();
+        return Object.assign(defaultSt, saved, {
+          user: loadUser(),
+          skills: saved.skills || seedSkills,
+          learningBacklog: []
+        });
+      }
+      return defaultState();
     } catch (error) {
       return defaultState();
     }
   }
   var state = loadState();
-  function saveState() { window.localStorage.setItem(storageKey, JSON.stringify(state)); }
+  function saveState() {
+    var snapshot = Object.assign({}, state);
+    delete snapshot.learningBacklog;
+    window.localStorage.setItem(storageKey, JSON.stringify(snapshot));
+  }
 
   function showToast(message) {
     var toast = $("#toast");
@@ -114,9 +129,12 @@
     $("#capacityHint").textContent = setting.hint;
     $("#actionIntro").textContent = setting.intro;
     $("#actionList").innerHTML = setting.actions.map(function (action, index) {
-      return '<article class="action-card"><div><strong>' + escapeHtml(action.title) + '</strong><p>' +
-        escapeHtml(action.desc) + '</p></div><span>' + escapeHtml(action.time) + '</span><button data-complete="' +
-        index + '">完成</button></article>';
+      return '<article class="action">' +
+        '<div class="action-head"><span>' + escapeHtml(action.time) + '</span></div>' +
+        '<h4>' + escapeHtml(action.title) + '</h4>' +
+        '<p>' + escapeHtml(action.desc) + '</p>' +
+        '<button data-complete="' + index + '">完成</button>' +
+        '</article>';
     }).join("");
     $$("[data-complete]").forEach(function (button) {
       button.addEventListener("click", function () {
@@ -446,22 +464,7 @@
   }
 
   function renderRadar() {
-    var total = state.rawJobs.length || 12;
-    $("#rawJobCount").textContent = total;
-    $("#mergedJobCount").textContent = state.mergedJobs || 0;
-    $("#cleanJobCount").textContent = state.cleanedJobs.length || total;
-    $("#cleaningNote").textContent = "岗位描述已标准化。后续可接入真实渠道。";
-    $("#coverageRows").innerHTML = state.skills.map(function (skill) {
-      return '<div class="coverage-row"><span>' + escapeHtml(skill.name) + '</span><i style="--level:' + skill.level +
-        '%;--fill:' + skill.market + '%"></i><span>' + skill.market + '%</span></div>';
-    }).join("");
-    $("#jdList").innerHTML = (state.cleanedJobs.length ? state.cleanedJobs : [
-      { company: "Galaxy AI", title: "AI App Engineer", city: "Hangzhou", score: 70 },
-      { company: "CloudPath", title: "LLM Engineer", city: "Hangzhou", score: 63 }
-    ]).map(function (job) {
-      return '<article class="jd-card"><div><strong>' + escapeHtml(job.title) + '</strong><p>' +
-        escapeHtml(job.company + " / " + job.city) + '</p></div><span>' + job.score + '%</span></article>';
-    }).join("");
+    // 市场雷达下已改为占位面板（私企 / 体制内），无需动态渲染。
   }
 
   function scanJobs() {
@@ -475,8 +478,6 @@
       { id: "job-3", company: "数智思维", title: "智能体平台工程师", city: city, description: "Agent Workflow FastAPI 可观测性", score: 57 }
     ];
     state.cleanedJobs = state.rawJobs;
-    $("#roleProfileTitle").textContent = city + " / " + role;
-    $("#roleProfileText").textContent = "已将 " + days + " 个样本信号聚合为岗位画像。";
     addAudit("scan", "已扫描岗位: " + role);
     saveState();
     renderAll(true);
@@ -821,6 +822,323 @@
       return '<p class="audit-entry"><strong>' + escapeHtml(entry.text) + '</strong><time>' + timeLabel(entry.at) + '</time></p>';
     }).join("") : '<p class="audit-entry"><strong>暂无审计日志</strong><time>--</time></p>';
   }
+
+  function renderLearningSuggestions() {
+    $("#suggestionCount").textContent = state.learningSuggestions.length + " 条建议";
+    if (state.learningSuggestions.length) {
+      $("#suggestionList").innerHTML = state.learningSuggestions.map(function (item, index) {
+        return '<article class="suggestion-item">' +
+          '<div class="suggestion-header">' +
+          '<h4>' + escapeHtml(item.title) + '</h4>' +
+          '<button class="suggestion-add" data-suggestion-add="' + index + '" title="编辑后加入待学清单">＋ 加入待学</button>' +
+          '</div>' +
+          '<p>' + escapeHtml(item.description) + '</p>' +
+          '<span class="priority ' + escapeHtml(item.priority) + '">' +
+          (item.priority === 'high' ? '高优先级' : item.priority === 'medium' ? '中优先级' : '低优先级') + '</span>' +
+          '</article>';
+      }).join("");
+    } else {
+      $("#suggestionList").innerHTML = '<p class="empty-state">输入今日工作内容，AI将为你生成个性化学习建议</p>';
+    }
+  }
+
+  function importSuggestionToBacklog(index) {
+    var suggestion = state.learningSuggestions[index];
+    if (!suggestion) return;
+
+    if (!state.user || !api || !api.createLearningBacklog) {
+      showToast("请先登录后再导入");
+      return;
+    }
+
+    var modal = document.createElement('div');
+    modal.className = 'backlog-modal-overlay active';
+    var nowDate = new Date();
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    var defaultTime = nowDate.getFullYear() + '-' + pad(nowDate.getMonth() + 1) + '-' + pad(nowDate.getDate()) +
+      'T' + pad(nowDate.getHours()) + ':' + pad(nowDate.getMinutes());
+    var priorityLabel = suggestion.priority === 'high' ? '高' : suggestion.priority === 'medium' ? '中' : '低';
+    modal.innerHTML = '<div class="backlog-modal">' +
+      '<h3>编辑并加入待学清单</h3>' +
+      '<label>学习内容<textarea id="importBacklogTitle" rows="3"></textarea></label>' +
+      '<label>时间<input type="datetime-local" id="importBacklogTime" value="' + defaultTime + '"></label>' +
+      '<p class="backlog-modal-hint">来源：AI 建议 · ' + priorityLabel + '优先级。可修改后保存。</p>' +
+      '<div class="backlog-modal-actions">' +
+      '<button class="secondary-command" id="cancelImport">取消</button>' +
+      '<button class="primary-command" id="confirmImport">保存到待学</button>' +
+      '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    var titleField = $("#importBacklogTitle");
+    titleField.value = suggestion.title || "";
+    titleField.focus();
+    titleField.setSelectionRange(titleField.value.length, titleField.value.length);
+
+    $("#confirmImport").addEventListener('click', function() {
+      var title = titleField.value.trim();
+      if (!title) {
+        showToast("请输入学习内容");
+        return;
+      }
+      var timeValue = $("#importBacklogTime").value;
+      var addedAt = timeValue ? new Date(timeValue).toISOString() : null;
+      var button = $("#confirmImport");
+      button.disabled = true;
+      button.textContent = "保存中...";
+      api.createLearningBacklog(state.user.id, title, addedAt).then(function (item) {
+        var newItem = {
+          id: item.id,
+          title: item.title,
+          completed: !!item.completed,
+          addedAt: item.added_at
+        };
+        state.learningBacklog.unshift(newItem);
+        renderLearningBacklog();
+        addAudit("learning", "AI 建议已加入待学: " + title);
+        document.body.removeChild(modal);
+        showToast("已加入待学清单");
+      }).catch(function (error) {
+        console.error("Import suggestion failed:", error);
+        showToast("保存失败：" + (error.message || error));
+        button.disabled = false;
+        button.textContent = "保存到待学";
+      });
+    });
+
+    $("#cancelImport").addEventListener('click', function() {
+      document.body.removeChild(modal);
+    });
+  }
+
+  function loadLearningBacklogFromServer() {
+    if (!state.user || !api || !api.listLearningBacklog) {
+      state.learningBacklog = [];
+      renderLearningBacklog();
+      return;
+    }
+    api.listLearningBacklog(state.user.id).then(function (items) {
+      state.learningBacklog = (items || []).map(function (item) {
+        return {
+          id: item.id,
+          title: item.title,
+          completed: !!item.completed,
+          addedAt: item.added_at
+        };
+      });
+      renderLearningBacklog();
+    }).catch(function (error) {
+      console.error("Learning backlog list failed:", error);
+      showToast("待学清单加载失败");
+    });
+  }
+
+  function loadResumesFromServer() {
+    if (!state.user || !api || !api.listResumeVersions) {
+      state.resumes = [];
+      renderResumes();
+      return;
+    }
+    api.listResumeVersions(state.user.id).then(function (items) {
+      state.resumes = (items || []).map(function (resume) {
+        return {
+          id: String(resume.id),
+          user_id: resume.user_id,
+          version_no: resume.version_no,
+          filename: resume.filename,
+          content: resume.content || "",
+          created_at: resume.created_at
+        };
+      });
+      if (state.resumes.length && !state.resumes.some(function (r) { return String(r.id) === String(state.activeResumeId); })) {
+        state.activeResumeId = state.resumes[0].id;
+      }
+      renderResumes();
+    }).catch(function (error) {
+      console.error("Resume versions list failed:", error);
+      showToast("简历版本加载失败");
+    });
+  }
+
+  function loadMatchHistoryFromServer() {
+    if (!state.user || !api || !api.listResumeMatchAnalyses) {
+      state.matchHistory = [];
+      renderMatchHistory();
+      return;
+    }
+    api.listResumeMatchAnalyses(state.user.id).then(function (items) {
+      state.matchHistory = (items || []).map(function (record) {
+        return {
+          id: record.id,
+          user_id: record.user_id,
+          resume_version_id: record.resume_version_id,
+          job_title: record.job_title,
+          job_description: record.job_description,
+          resume_score: record.resume_score,
+          match_score: record.match_score,
+          dimension_scores: record.dimension_scores || [],
+          resume_suggestions: record.resume_suggestions || [],
+          match_highlights: record.match_highlights || [],
+          match_gaps: record.match_gaps || [],
+          created_at: record.created_at
+        };
+      });
+      if (state.matchHistory.length && !state.lastAnalysis) {
+        state.lastAnalysis = state.matchHistory[0];
+      }
+      renderMatchHistory();
+      renderShieldResults();
+    }).catch(function (error) {
+      console.error("Match history list failed:", error);
+      showToast("匹配历史加载失败");
+    });
+  }
+
+  function renderLearningBacklog() {
+    if (state.learningBacklog.length) {
+      $("#backlogGrid").innerHTML = state.learningBacklog.map(function (item) {
+        return '<article class="backlog-card' + (item.completed ? ' completed' : '') + '">' +
+          '<div class="backlog-actions">' +
+          '<button class="backlog-action" data-backlog-toggle="' + item.id + '">' + (item.completed ? '↺' : '✓') + '</button>' +
+          '<button class="backlog-action" data-backlog-delete="' + item.id + '">×</button>' +
+          '</div>' +
+          '<h4 class="backlog-title">' + escapeHtml(item.title) + '</h4>' +
+          '<div class="backlog-meta"><span>添加时间</span><span>' + timeLabel(item.addedAt) + '</span></div>' +
+          '</article>';
+      }).join("");
+    } else {
+      $("#backlogGrid").innerHTML = '<div class="empty-state">暂无待学项，添加一些你想学习的内容吧</div>';
+    }
+  }
+
+  function generateLearningSuggestions() {
+    var input = $("#learningInput").value.trim();
+    if (!input) {
+      showToast("请先输入今日工作内容");
+      return;
+    }
+
+    state.learningInput = input;
+
+    var generateButton = $("#generateLearning");
+    generateButton.disabled = true;
+    generateButton.textContent = "生成中...";
+
+    $("#suggestionList").innerHTML = '<p class="empty-state">正在调用大模型生成学习建议...</p>';
+    if (!api || !api.generateLearningSuggestions) {
+      $("#suggestionList").innerHTML = '<p class="empty-state">API客户端未加载，请刷新页面后重试。</p>';
+      generateButton.disabled = false;
+      generateButton.textContent = "生成学习建议";
+      showToast("API客户端未加载");
+      return;
+    }
+
+    api.generateLearningSuggestions(input).then(function (result) {
+      state.learningSuggestions = result.suggestions || [];
+      renderLearningSuggestions();
+      addAudit("learning", "学习建议已生成");
+      saveState();
+      showToast("学习建议已生成");
+    }).catch(function (error) {
+      console.error("LLM learning suggestions failed:", error);
+      $("#suggestionList").innerHTML = '<p class="empty-state">生成失败：' + escapeHtml(error.message || error) + '</p>';
+      showToast("学习建议生成失败");
+    }).finally(function () {
+      generateButton.disabled = false;
+      generateButton.textContent = "生成学习建议";
+    });
+  }
+
+  function addLearningBacklogItem() {
+    var modal = document.createElement('div');
+    modal.className = 'backlog-modal-overlay active';
+    var nowDate = new Date();
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    var defaultTime = nowDate.getFullYear() + '-' + pad(nowDate.getMonth() + 1) + '-' + pad(nowDate.getDate()) +
+      'T' + pad(nowDate.getHours()) + ':' + pad(nowDate.getMinutes());
+    modal.innerHTML = '<div class="backlog-modal">' +
+      '<h3>添加待学项</h3>' +
+      '<label>学习内容<input id="newBacklogTitle" placeholder="例如：学习 RAG 检索优化"></label>' +
+      '<label>时间<input type="datetime-local" id="newBacklogTime" value="' + defaultTime + '"></label>' +
+      '<p class="backlog-modal-hint">时间为当前时间，可根据需要调整</p>' +
+      '<div class="backlog-modal-actions">' +
+      '<button class="secondary-command" id="cancelBacklog">取消</button>' +
+      '<button class="primary-command" id="saveBacklog">保存</button>' +
+      '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    $("#saveBacklog").addEventListener('click', function() {
+      var title = $("#newBacklogTitle").value.trim();
+      if (!title) {
+        showToast("请输入学习内容");
+        return;
+      }
+
+      if (!state.user || !api || !api.createLearningBacklog) {
+        showToast("请先登录后再添加");
+        return;
+      }
+
+      var timeValue = $("#newBacklogTime").value;
+      var addedAt = timeValue ? new Date(timeValue).toISOString() : null;
+
+      api.createLearningBacklog(state.user.id, title, addedAt).then(function (item) {
+        var newItem = {
+          id: item.id,
+          title: item.title,
+          completed: !!item.completed,
+          addedAt: item.added_at
+        };
+        state.learningBacklog.unshift(newItem);
+        renderLearningBacklog();
+        addAudit("learning", "待学项已添加: " + title);
+        document.body.removeChild(modal);
+        showToast("待学项已添加");
+      }).catch(function (error) {
+        console.error("Learning backlog create failed:", error);
+        showToast("保存失败：" + (error.message || error));
+      });
+    });
+
+    $("#cancelBacklog").addEventListener('click', function() {
+      document.body.removeChild(modal);
+    });
+  }
+
+  function toggleBacklogItem(itemId) {
+    if (!state.user || !api || !api.toggleLearningBacklog) {
+      showToast("请先登录后再操作");
+      return;
+    }
+    api.toggleLearningBacklog(state.user.id, itemId).then(function (item) {
+      var target = state.learningBacklog.find(function (i) { return i.id === item.id; });
+      if (target) {
+        target.completed = !!item.completed;
+        target.addedAt = item.added_at;
+      }
+      renderLearningBacklog();
+      showToast(item.completed ? "已标记为已学习" : "已恢复为待学习");
+    }).catch(function (error) {
+      console.error("Learning backlog toggle failed:", error);
+      showToast("更新失败：" + (error.message || error));
+    });
+  }
+
+  function deleteBacklogItem(itemId) {
+    if (!state.user || !api || !api.deleteLearningBacklog) {
+      showToast("请先登录后再操作");
+      return;
+    }
+    api.deleteLearningBacklog(state.user.id, itemId).then(function () {
+      state.learningBacklog = state.learningBacklog.filter(function (i) { return i.id !== itemId; });
+      renderLearningBacklog();
+      showToast("待学项已删除");
+    }).catch(function (error) {
+      console.error("Learning backlog delete failed:", error);
+      showToast("删除失败：" + (error.message || error));
+    });
+  }
   function convertPlan() {
     var text = $("#planInput").value.trim();
     if (!text) {
@@ -840,14 +1158,32 @@
       profileStatus.innerHTML = "";
       return;
     }
-    profileStatus.innerHTML = '<button id="userInfo" class="user-info"><span>' +
-      escapeHtml((state.user.name || "?").slice(0, 2)) + '</span><strong>' +
-      escapeHtml(state.user.name || state.user.email) + '</strong></button><div id="userDropdown" class="user-dropdown"><button id="logoutButton">退出登录</button></div>';
+    profileStatus.innerHTML = '<div class="user-menu">' +
+      '<button id="userInfo" class="user-info" type="button">' +
+      '<span class="user-avatar">' + escapeHtml((state.user.name || "?").slice(0, 2)) + '</span>' +
+      '<span class="user-name">' + escapeHtml(state.user.name || state.user.email) + '</span>' +
+      '</button>' +
+      '<div id="userDropdown" class="user-dropdown">' +
+      '<button id="logoutButton" class="user-dropdown-item danger" type="button">退出登录</button>' +
+      '</div>' +
+      '</div>';
+    var userInfoBtn = $("#userInfo");
+    var dropdown = $("#userDropdown");
+    userInfoBtn.addEventListener("click", function (event) {
+      event.stopPropagation();
+      dropdown.classList.toggle("active");
+    });
     $("#logoutButton").addEventListener("click", function () {
       state.user = null;
       saveUser(null);
       saveState();
+      dropdown.classList.remove("active");
       showLoginPage();
+    });
+    document.addEventListener("click", function closeOnOutside(event) {
+      if (!profileStatus.contains(event.target)) {
+        dropdown.classList.remove("active");
+      }
     });
   }
 
@@ -861,6 +1197,8 @@
     renderShieldResults();
     renderMatchHistory();
     renderReview();
+    renderLearningSuggestions();
+    renderLearningBacklog();
     renderUserStatus();
   }
 
@@ -941,6 +1279,25 @@
         saveState();
       });
     });
+    $("#generateLearning").addEventListener("click", generateLearningSuggestions);
+    $("#addLearningItem").addEventListener("click", addLearningBacklogItem);
+    document.addEventListener("click", function (event) {
+      var toggleBtn = event.target.closest('[data-backlog-toggle]');
+      if (toggleBtn) {
+        toggleBacklogItem(toggleBtn.dataset.backlogToggle);
+        return;
+      }
+      var deleteBtn = event.target.closest('[data-backlog-delete]');
+      if (deleteBtn) {
+        deleteBacklogItem(deleteBtn.dataset.backlogDelete);
+        return;
+      }
+      var addBtn = event.target.closest('[data-suggestion-add]');
+      if (addBtn) {
+        importSuggestionToBacklog(parseInt(addBtn.dataset.suggestionAdd, 10));
+        return;
+      }
+    });
     $("#showRegister").addEventListener("click", function (event) {
       event.preventDefault();
       $("#loginPage").classList.add("hidden");
@@ -969,6 +1326,9 @@
           saveUser(result.user);
           saveState();
           showApp();
+          loadLearningBacklogFromServer();
+          loadResumesFromServer();
+          loadMatchHistoryFromServer();
           renderAll();
           showToast("Login ok");
         } else {
@@ -992,6 +1352,9 @@
           saveUser(result.user);
           saveState();
           showApp();
+          loadLearningBacklogFromServer();
+          loadResumesFromServer();
+          loadMatchHistoryFromServer();
           renderAll();
           showToast("Register ok");
         } else {
@@ -1004,7 +1367,12 @@
   document.addEventListener("DOMContentLoaded", function () {
     if (state.targetJobText) $("#targetJobSelect").value = state.targetJobText;
     bindEvents();
-    if (state.user) showApp();
+    if (state.user) {
+      showApp();
+      loadLearningBacklogFromServer();
+      loadResumesFromServer();
+      loadMatchHistoryFromServer();
+    }
     else showLoginPage();
     if (state.activeResumeId) {
       loadResumeDimensionScores(state.activeResumeId);

@@ -354,3 +354,74 @@ JSON 格式:
         "match_gaps": [str(item) for item in gaps][:5],
         "model": body.get("model", model),
     }
+
+
+def generate_learning_suggestions_with_llm(work_content: str) -> dict:
+    model = os.getenv("OPENAI_MODEL", "poolside/laguna-xs.2:free")
+    schema_hint = {
+        "suggestions": [
+            {
+                "title": "学习主题",
+                "description": "结合今日工作问题给出的具体学习建议和练习方向",
+                "priority": "high",
+            }
+        ]
+    }
+    user_content = f"""
+请根据用户今天的工作内容和遇到的问题，生成个性化学习建议。
+
+今日工作内容：
+{work_content}
+
+要求：
+- 只返回有效 JSON，不要使用 Markdown。
+- 返回 3-5 条建议，按优先级从高到低排序。
+- 每条建议必须与用户描述的实际问题直接相关，避免泛泛而谈。
+- title 使用简洁中文，description 说明应该学习什么、为什么以及可执行的练习方向。
+- priority 只能是 high、medium、low。
+- 不要编造用户没有提到的项目事实。
+
+JSON 格式：
+{json.dumps(schema_hint, ensure_ascii=False, indent=2)}
+""".strip()
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a practical career learning advisor. Return JSON only.",
+            },
+            {"role": "user", "content": user_content},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 1400,
+        "response_format": {"type": "json_object"},
+    }
+    body = _chat_completion(payload)
+    analysis = _extract_json_object(body["choices"][0]["message"]["content"])
+    raw_suggestions = analysis.get("suggestions") or []
+    if not isinstance(raw_suggestions, list):
+        raw_suggestions = []
+
+    suggestions = []
+    for item in raw_suggestions[:5]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        description = str(item.get("description") or "").strip()
+        priority = str(item.get("priority") or "medium").strip().lower()
+        if priority not in {"high", "medium", "low"}:
+            priority = "medium"
+        if title and description:
+            suggestions.append(
+                {
+                    "title": title,
+                    "description": description,
+                    "priority": priority,
+                }
+            )
+
+    if not suggestions:
+        raise RuntimeError("LLM did not return valid learning suggestions")
+
+    return {"suggestions": suggestions, "model": body.get("model", model)}

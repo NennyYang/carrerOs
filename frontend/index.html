@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CareerOS</title>
-    <link rel="stylesheet" href="/frontend/styles.css?v=20" />
+    <link rel="stylesheet" href="/frontend/styles.css?v=38" />
   </head>
   <body>
     <div class="shell">
@@ -18,6 +18,7 @@
         </div>
         <nav class="nav" aria-label="主导航">
           <button class="nav-item active" data-view="cockpit">运行舱</button>
+          <button class="nav-item" data-view="learning">精进仓库</button>
           <button class="nav-item" data-view="skills">能力图谱</button>
           <button class="nav-item" data-view="radar">市场雷达</button>
           <button class="nav-item" data-view="shield">求职护盾</button>
@@ -164,19 +165,50 @@
             <label>发布时间<select id="publishQuery"><option>最近 7 天</option><option>最近 3 天</option><option>最近 30 天</option></select></label>
             <div class="source-state"><span class="signal market"></span> 演示数据源 / 正式版需授权渠道</div>
           </section>
-          <div class="coverage-panel">
-            <p class="overline">目标岗位画像</p>
-            <h3 id="roleProfileTitle">杭州 / AI 应用开发工程师</h3>
-            <p class="subtle" id="roleProfileText">聚合近期目标岗位，提取共性门槛。</p>
-            <div class="coverage-rows" id="coverageRows"></div>
+          <div class="coverage-panel coverage-panel--pending">
+            <div class="coverage-panel-head">
+              <p class="overline">市场化岗位</p>
+              <span class="pending-tag">等待开发</span>
+            </div>
+            <h3>私企 · 互联网 / 科技 / 金融</h3>
+            <p class="subtle">市场化岗位聚合、画像与能力匹配正在规划中，后续接入招聘平台实时数据源。</p>
+            <div class="pending-grid">
+              <div class="pending-cell">
+                <span class="pending-cell-label">互联网大厂</span>
+                <span class="pending-cell-status">规划中</span>
+              </div>
+              <div class="pending-cell">
+                <span class="pending-cell-label">AI / 硬科技创业</span>
+                <span class="pending-cell-status">规划中</span>
+              </div>
+              <div class="pending-cell">
+                <span class="pending-cell-label">金融科技 / 国企混改</span>
+                <span class="pending-cell-status">规划中</span>
+              </div>
+            </div>
           </div>
-          <section class="market-conclusion" id="marketConclusion">
-            <div><strong id="rawJobCount">0</strong><span>原始 JD</span></div>
-            <div><strong id="mergedJobCount">0</strong><span>合并重复</span></div>
-            <div><strong id="cleanJobCount">0</strong><span>有效样本</span></div>
-            <p id="cleaningNote"></p>
-          </section>
-          <div class="jd-list" id="jdList"></div>
+          <div class="coverage-panel coverage-panel--pending">
+            <div class="coverage-panel-head">
+              <p class="overline">体制内通道</p>
+              <span class="pending-tag">等待开发</span>
+            </div>
+            <h3>事业编 · 公务员 · 高校</h3>
+            <p class="subtle">体制内岗位聚合与画像分析正在规划中，后续接入考纲、招录公告与岗位匹配能力。</p>
+            <div class="pending-grid">
+              <div class="pending-cell">
+                <span class="pending-cell-label">事业编</span>
+                <span class="pending-cell-status">规划中</span>
+              </div>
+              <div class="pending-cell">
+                <span class="pending-cell-label">公务员</span>
+                <span class="pending-cell-status">规划中</span>
+              </div>
+              <div class="pending-cell">
+                <span class="pending-cell-label">高校 / 科研院所</span>
+                <span class="pending-cell-status">规划中</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="view module-view" id="view-shield">
@@ -219,6 +251,46 @@
                 <thead><tr><th>简历版本</th><th>对应岗位</th><th>综合总分</th><th>匹配分数</th><th>分析时间</th><th>操作</th></tr></thead>
                 <tbody id="matchHistory"></tbody>
               </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view module-view" id="view-learning">
+          <div class="module-title">
+            <div><p class="overline">学习系统</p><h2>精进仓库</h2></div>
+            <button type="button" class="primary-command" id="generateLearning">生成学习建议</button>
+          </div>
+          <p class="subtle">记录今天的工作和遇到的问题，让AI帮你分析应该学习什么。同时管理你的待学清单。</p>
+
+          <div class="learning-layout">
+            <section class="learning-input-panel">
+              <div class="panel-heading">
+                <div><p class="overline">今日输入</p><h3>今天做了什么 / 遇到什么问题</h3></div>
+              </div>
+              <textarea id="learningInput" placeholder="例如：今天在做RAG项目时，发现向量数据库的检索效果不好，不知道怎么优化召回率..."></textarea>
+              <div class="input-tips">
+                <p><strong>提示：</strong>越详细的描述，AI给出的学习建议越精准</p>
+              </div>
+            </section>
+
+            <section class="learning-output-panel">
+              <div class="panel-heading">
+                <div><p class="overline">AI建议</p><h3>推荐学习方向</h3></div>
+                <span class="optional" id="suggestionCount">0 条建议</span>
+              </div>
+              <div class="suggestion-list" id="suggestionList">
+                <p class="empty-state">输入今日工作内容，AI将为你生成个性化学习建议</p>
+              </div>
+            </section>
+          </div>
+
+          <section class="learning-backlog-panel">
+            <div class="panel-heading">
+              <div><p class="overline">待学清单</p><h3>学习雷达 - 想学但还没学的内容</h3></div>
+              <button type="button" class="secondary-command" id="addLearningItem">添加待学项</button>
+            </div>
+            <div class="backlog-grid" id="backlogGrid">
+              <div class="empty-state">暂无待学项，添加一些你想学习的内容吧</div>
             </div>
           </section>
         </section>
@@ -292,8 +364,8 @@
       </div>
     </div>
 
-    <script src="./api.js?v=22"></script>
-    <script src="./capability-rules.js?v=22"></script>
-    <script src="./app.js?v=22"></script>
+    <script src="./api.js?v=38"></script>
+    <script src="./capability-rules.js?v=38"></script>
+    <script src="./app.js?v=38"></script>
   </body>
 </html>

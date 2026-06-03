@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.sql import func
 from database import Base
 
@@ -103,3 +103,20 @@ class ProjectDimensionScoreRecord(Base):
     model = Column(String(200), nullable=False, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class LearningBacklog(Base):
+    __tablename__ = "learning_backlog"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(500), nullable=False)
+    note = Column(Text, nullable=True)
+    tags = Column(JSON, nullable=True)
+    priority = Column(String(20), nullable=False, default="medium")
+    completed = Column(Boolean, nullable=False, default=False)
+    added_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

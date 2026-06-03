@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import logging
 from io import BytesIO
 from pathlib import Path
@@ -13,9 +14,11 @@ from llm_service import (
     analyze_resume_dimensions_with_llm,
     analyze_resume_match_with_llm,
     analyze_resume_with_llm,
+    generate_learning_suggestions_with_llm,
 )
 from models import (
     JobSkill,
+    LearningBacklog,
     ProjectCapabilityProfile,
     ProjectDimensionScoreRecord,
     ResumeAnalysisRecord,
@@ -26,6 +29,10 @@ from models import (
 from schemas import (
     JobSkillCreate,
     JobSkillResponse,
+    LearningBacklogCreate,
+    LearningBacklogResponse,
+    LearningSuggestionRequest,
+    LearningSuggestionResponse,
     ProjectAnalysisRequest,
     ProjectAnalysisResponse,
     ProjectCapabilityProfileResponse,
@@ -198,6 +205,25 @@ def score_resume_against_jd(resume_content: str, job_description: str) -> dict:
         "match_highlights": highlights,
         "match_gaps": gaps,
     }
+
+
+@router.post("/learning-suggestions", response_model=LearningSuggestionResponse)
+def generate_learning_suggestions(request: LearningSuggestionRequest):
+    logger.info("Learning suggestions API called")
+    try:
+        result = generate_learning_suggestions_with_llm(request.work_content.strip())
+        logger.info(
+            "Learning suggestions API completed: model=%s count=%s",
+            result.get("model"),
+            len(result.get("suggestions", [])),
+        )
+        return result
+    except Exception as error:
+        logger.exception("Learning suggestions API failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
 
 
 @router.post(
@@ -730,3 +756,96 @@ def analyze_project_dimensions(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(error),
         )
+
+
+@router.get(
+    "/learning-backlog",
+    response_model=list[LearningBacklogResponse],
+)
+def list_learning_backlog(user_id: int, db: Session = Depends(get_db)):
+    return (
+        db.query(LearningBacklog)
+        .filter(LearningBacklog.user_id == user_id)
+        .order_by(LearningBacklog.added_at.desc(), LearningBacklog.id.desc())
+        .all()
+    )
+
+
+@router.post(
+    "/learning-backlog",
+    response_model=LearningBacklogResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_learning_backlog(
+    item_data: LearningBacklogCreate, db: Session = Depends(get_db)
+):
+    ensure_user_exists(item_data.user_id, db)
+    title = item_data.title.strip()
+    if not title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Learning backlog title cannot be empty",
+        )
+    item = LearningBacklog(
+        user_id=item_data.user_id,
+        title=title,
+        completed=False,
+    )
+    if item_data.added_at is not None:
+        item.added_at = item_data.added_at
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch(
+    "/learning-backlog/{item_id}/toggle",
+    response_model=LearningBacklogResponse,
+)
+def toggle_learning_backlog(
+    item_id: int, user_id: int, db: Session = Depends(get_db)
+):
+    item = (
+        db.query(LearningBacklog)
+        .filter(
+            LearningBacklog.id == item_id,
+            LearningBacklog.user_id == user_id,
+        )
+        .first()
+    )
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Learning backlog item not found",
+        )
+    item.completed = not item.completed
+    item.completed_at = datetime.now(timezone.utc) if item.completed else None
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete(
+    "/learning-backlog/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_learning_backlog(
+    item_id: int, user_id: int, db: Session = Depends(get_db)
+):
+    item = (
+        db.query(LearningBacklog)
+        .filter(
+            LearningBacklog.id == item_id,
+            LearningBacklog.user_id == user_id,
+        )
+        .first()
+    )
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Learning backlog item not found",
+        )
+    db.delete(item)
+    db.commit()
+    return None

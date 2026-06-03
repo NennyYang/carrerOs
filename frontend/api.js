@@ -33,6 +33,18 @@
     return fetch(API_BASE + path).then(parseResponse);
   }
 
+  function patch(path, payload) {
+    return fetch(API_BASE + path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(parseResponse);
+  }
+
+  function del(path) {
+    return fetch(API_BASE + path, { method: "DELETE" }).then(parseResponse);
+  }
+
   function requireOk(response, fallback) {
     if (!response.ok) throw new Error(response.result.detail || fallback);
     return response.result;
@@ -65,6 +77,11 @@
         problem: profile.problem,
         solution_and_validation: profile.solution
       }).then(function (response) { return requireOk(response, "Project analysis failed"); });
+    },
+    generateLearningSuggestions: function (workContent) {
+      return post("/api/capabilities/learning-suggestions", {
+        work_content: workContent
+      }).then(function (response) { return requireOk(response, "Learning suggestions failed"); });
     },
     analyzeResume: function (data) {
       return post("/api/capabilities/resumes/analyze", {
@@ -116,6 +133,26 @@
     listResumeMatchAnalyses: function (userId) {
       return get("/api/capabilities/resumes/match-analyses?user_id=" + encodeURIComponent(userId))
         .then(function (response) { return requireOk(response, "Match history failed"); });
+    },
+    listLearningBacklog: function (userId) {
+      return get("/api/capabilities/learning-backlog?user_id=" + encodeURIComponent(userId))
+        .then(function (response) { return requireOk(response, "Learning backlog list failed"); });
+    },
+    createLearningBacklog: function (userId, title, addedAt) {
+      var payload = { user_id: userId, title: title };
+      if (addedAt) payload.added_at = addedAt;
+      return post("/api/capabilities/learning-backlog", payload)
+        .then(function (response) { return requireOk(response, "Learning backlog create failed"); });
+    },
+    toggleLearningBacklog: function (userId, itemId) {
+      return patch("/api/capabilities/learning-backlog/" + encodeURIComponent(itemId) + "/toggle",
+        { user_id: userId })
+        .then(function (response) { return requireOk(response, "Learning backlog toggle failed"); });
+    },
+    deleteLearningBacklog: function (userId, itemId) {
+      return del("/api/capabilities/learning-backlog/" + encodeURIComponent(itemId) +
+        "?user_id=" + encodeURIComponent(userId))
+        .then(function (response) { return requireOk(response, "Learning backlog delete failed"); });
     }
   };
 }());

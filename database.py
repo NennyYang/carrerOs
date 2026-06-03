@@ -18,6 +18,7 @@ def get_db():
 def init_db():
     from models import (
         JobSkill,
+        LearningBacklog,
         ProjectCapabilityProfile,
         ProjectDimensionScoreRecord,
         ResumeAnalysisRecord,
