@@ -1005,6 +1005,9 @@
         state.activeResumeId = state.resumes[0].id;
       }
       renderResumes();
+      if (state.activeResumeId) {
+        loadResumeDimensionScores(state.activeResumeId);
+      }
       loadStoredResumeScore();
     }).catch(function (error) {
       console.error("Resume versions list failed:", error);
@@ -1109,9 +1112,9 @@
       'T' + pad(nowDate.getHours()) + ':' + pad(nowDate.getMinutes());
     modal.innerHTML = '<div class="backlog-modal">' +
       '<h3>添加待学项</h3>' +
-      '<label>学习内容<input id="newBacklogTitle" placeholder="例如：学习 RAG 检索优化"></label>' +
+      '<label>学习内容<textarea id="newBacklogTitle" rows="5" placeholder="例如：学习 RAG 检索优化（每行一条，可批量导入）"></textarea></label>' +
       '<label>时间<input type="datetime-local" id="newBacklogTime" value="' + defaultTime + '"></label>' +
-      '<p class="backlog-modal-hint">时间为当前时间，可根据需要调整</p>' +
+      '<p class="backlog-modal-hint">时间为当前时间，可根据需要调整。多个待学项请用换行分隔。</p>' +
       '<div class="backlog-modal-actions">' +
       '<button class="secondary-command" id="cancelBacklog">取消</button>' +
       '<button class="primary-command" id="saveBacklog">保存</button>' +
@@ -1119,9 +1122,13 @@
       '</div>';
     document.body.appendChild(modal);
 
+    var titleField = $("#newBacklogTitle");
+    titleField.focus();
+
     $("#saveBacklog").addEventListener('click', function() {
-      var title = $("#newBacklogTitle").value.trim();
-      if (!title) {
+      var raw = titleField.value || "";
+      var titles = raw.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(function (line) { return line.length > 0; });
+      if (!titles.length) {
         showToast("请输入学习内容");
         return;
       }
@@ -1133,22 +1140,37 @@
 
       var timeValue = $("#newBacklogTime").value;
       var addedAt = timeValue ? new Date(timeValue).toISOString() : null;
+      var button = $("#saveBacklog");
+      button.disabled = true;
+      button.textContent = "保存中...";
 
-      api.createLearningBacklog(state.user.id, title, addedAt).then(function (item) {
-        var newItem = {
-          id: item.id,
-          title: item.title,
-          completed: !!item.completed,
-          addedAt: item.added_at
-        };
-        state.learningBacklog.unshift(newItem);
+      var createOne = function (title) {
+        return api.createLearningBacklog(state.user.id, title, addedAt);
+      };
+      var request = titles.length === 1
+        ? createOne(titles[0]).then(function (item) { return [item]; })
+        : api.createLearningBacklogBatch(state.user.id, titles, addedAt);
+
+      request.then(function (createdItems) {
+        var newItems = (createdItems || []).map(function (item) {
+          return {
+            id: item.id,
+            title: item.title,
+            completed: !!item.completed,
+            addedAt: item.added_at
+          };
+        });
+        newItems.reverse().forEach(function (item) { state.learningBacklog.unshift(item); });
         renderLearningBacklog();
-        addAudit("learning", "待学项已添加: " + title);
+        var count = newItems.length;
+        addAudit("learning", "待学项已添加: " + count + " 条");
         document.body.removeChild(modal);
-        showToast("待学项已添加");
+        showToast(count > 1 ? ("已批量添加 " + count + " 条待学项") : "待学项已添加");
       }).catch(function (error) {
         console.error("Learning backlog create failed:", error);
         showToast("保存失败：" + (error.message || error));
+        button.disabled = false;
+        button.textContent = "保存";
       });
     });
 
@@ -1162,8 +1184,13 @@
       showToast("请先登录后再操作");
       return;
     }
-    api.toggleLearningBacklog(state.user.id, itemId).then(function (item) {
-      var target = state.learningBacklog.find(function (i) { return i.id === item.id; });
+    var numericId = parseInt(itemId, 10);
+    if (!numericId) {
+      showToast("无效的待学项");
+      return;
+    }
+    api.toggleLearningBacklog(state.user.id, numericId).then(function (item) {
+      var target = state.learningBacklog.find(function (i) { return Number(i.id) === Number(item.id); });
       if (target) {
         target.completed = !!item.completed;
         target.addedAt = item.added_at;
@@ -1181,8 +1208,13 @@
       showToast("请先登录后再操作");
       return;
     }
-    api.deleteLearningBacklog(state.user.id, itemId).then(function () {
-      state.learningBacklog = state.learningBacklog.filter(function (i) { return i.id !== itemId; });
+    var numericId = parseInt(itemId, 10);
+    if (!numericId) {
+      showToast("无效的待学项");
+      return;
+    }
+    api.deleteLearningBacklog(state.user.id, numericId).then(function () {
+      state.learningBacklog = state.learningBacklog.filter(function (i) { return Number(i.id) !== numericId; });
       renderLearningBacklog();
       showToast("待学项已删除");
     }).catch(function (error) {
@@ -1291,6 +1323,7 @@
     $("#scanJobs").addEventListener("click", scanJobs);
     $("#resumeSelect").addEventListener("change", function () {
       state.activeResumeId = this.value;
+      loadResumeDimensionScores(this.value);
       renderResumes();
       loadStoredResumeScore();
       saveState();

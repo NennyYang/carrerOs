@@ -855,7 +855,8 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.55; }
 .backlog-modal h3 { font-size: 17px; margin-bottom: 20px; }
 .backlog-modal label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 14px; }
 .backlog-modal input, .backlog-modal textarea { min-width: 0; }
-.backlog-modal textarea { min-height: 80px; }
+.backlog-modal textarea { min-height: 80px; resize: vertical; font-family: inherit; }
+.backlog-modal textarea::placeholder { color: var(--muted); opacity: 0.7; }
 .backlog-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .backlog-modal-actions button { flex: 1; }
 .backlog-modal-hint { color: var(--muted); font-size: 11px; margin: -6px 0 14px; }

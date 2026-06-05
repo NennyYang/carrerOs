@@ -29,7 +29,9 @@ from models import (
 from schemas import (
     JobSkillCreate,
     JobSkillResponse,
+    LearningBacklogBatchCreate,
     LearningBacklogCreate,
+    LearningBacklogOwnerRequest,
     LearningBacklogResponse,
     LearningSuggestionRequest,
     LearningSuggestionResponse,
@@ -799,18 +801,59 @@ def create_learning_backlog(
     return item
 
 
+@router.post(
+    "/learning-backlog/batch",
+    response_model=list[LearningBacklogResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def create_learning_backlog_batch(
+    batch_data: LearningBacklogBatchCreate, db: Session = Depends(get_db)
+):
+    ensure_user_exists(batch_data.user_id, db)
+    seen = set()
+    unique_titles = []
+    for raw_title in batch_data.titles:
+        title = " ".join(raw_title.split()).strip()
+        if not title or title in seen:
+            continue
+        seen.add(title)
+        unique_titles.append(title)
+    if not unique_titles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Learning backlog titles cannot be empty",
+        )
+    new_items = []
+    for title in unique_titles:
+        item = LearningBacklog(
+            user_id=batch_data.user_id,
+            title=title,
+            completed=False,
+        )
+        if batch_data.added_at is not None:
+            item.added_at = batch_data.added_at
+        db.add(item)
+        new_items.append(item)
+    db.commit()
+    for item in new_items:
+        db.refresh(item)
+    return new_items
+
+
 @router.patch(
     "/learning-backlog/{item_id}/toggle",
     response_model=LearningBacklogResponse,
 )
 def toggle_learning_backlog(
-    item_id: int, user_id: int, db: Session = Depends(get_db)
+    item_id: int,
+    payload: LearningBacklogOwnerRequest,
+    db: Session = Depends(get_db),
 ):
     item = (
         db.query(LearningBacklog)
         .filter(
             LearningBacklog.id == item_id,
-            LearningBacklog.user_id == user_id,
+            LearningBacklog.user_id == payload.user_id,
         )
         .first()
     )

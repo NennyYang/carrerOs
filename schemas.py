@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 class UserRegister(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -246,6 +246,16 @@ class LearningBacklogCreate(BaseModel):
     user_id: int
     title: str = Field(min_length=1, max_length=500)
     added_at: Optional[datetime] = None
+
+
+class LearningBacklogBatchCreate(BaseModel):
+    user_id: int
+    titles: list[str] = Field(min_length=1, max_length=200)
+    added_at: Optional[datetime] = None
+
+
+class LearningBacklogOwnerRequest(BaseModel):
+    user_id: int
 
 
 class LearningBacklogResponse(BaseModel):

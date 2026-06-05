@@ -144,6 +144,12 @@
       return post("/api/capabilities/learning-backlog", payload)
         .then(function (response) { return requireOk(response, "Learning backlog create failed"); });
     },
+    createLearningBacklogBatch: function (userId, titles, addedAt) {
+      var payload = { user_id: userId, titles: titles };
+      if (addedAt) payload.added_at = addedAt;
+      return post("/api/capabilities/learning-backlog/batch", payload)
+        .then(function (response) { return requireOk(response, "Learning backlog batch create failed"); });
+    },
     toggleLearningBacklog: function (userId, itemId) {
       return patch("/api/capabilities/learning-backlog/" + encodeURIComponent(itemId) + "/toggle",
         { user_id: userId })
