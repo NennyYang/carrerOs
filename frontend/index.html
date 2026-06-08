@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CareerOS</title>
-    <link rel="stylesheet" href="/frontend/styles.css?v=45" />
+    <link rel="stylesheet" href="/frontend/styles.css?v=46" />
   </head>
   <body>
     <div class="shell">
@@ -293,7 +293,10 @@
           <section class="learning-backlog-panel">
             <div class="panel-heading">
               <div><p class="overline">待学清单</p><h3>学习雷达 - 想学但还没学的内容</h3></div>
-              <button type="button" class="secondary-command" id="addLearningItem">添加待学项</button>
+              <div class="panel-heading-actions">
+                <button type="button" class="secondary-command" id="presentBacklog" disabled>大屏展示</button>
+                <button type="button" class="secondary-command" id="addLearningItem">添加待学项</button>
+              </div>
             </div>
             <div class="backlog-grid" id="backlogGrid">
               <div class="empty-state">暂无待学项，添加一些你想学习的内容吧</div>
@@ -370,8 +373,8 @@
       </div>
     </div>
 
-    <script src="./api.js?v=45"></script>
+    <script src="./api.js?v=46"></script>
     <script src="./capability-rules.js?v=42"></script>
-    <script src="./app.js?v=45"></script>
+    <script src="./app.js?v=46"></script>
   </body>
 </html>

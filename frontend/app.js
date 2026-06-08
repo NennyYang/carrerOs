@@ -1063,6 +1063,173 @@
     } else {
       $("#backlogGrid").innerHTML = '<div class="empty-state">暂无待学项，添加一些你想学习的内容吧</div>';
     }
+    var presentBtn = $("#presentBacklog");
+    if (presentBtn) presentBtn.disabled = state.learningBacklog.length === 0;
+  }
+
+  var presentationState = {
+    overlay: null,
+    list: null,
+    progress: null,
+    focusIndex: -1,
+    autoplay: false,
+    autoplayTimer: null,
+    autoplayDelay: 4500
+  };
+
+  function buildBacklogPresentation() {
+    if (presentationState.overlay) return presentationState.overlay;
+    var overlay = document.createElement('div');
+    overlay.className = 'backlog-presentation-overlay';
+    overlay.innerHTML = '<div class="backlog-presentation-header">' +
+      '<div>' +
+        '<p class="overline">PRESENT MODE</p>' +
+        '<h2>待学清单 · 大屏展示</h2>' +
+      '</div>' +
+      '<div class="backlog-presentation-controls">' +
+        '<button type="button" class="secondary-command" id="presentationPrev">上一条</button>' +
+        '<button type="button" class="secondary-command" id="presentationAutoplay">自动播放</button>' +
+        '<button type="button" class="secondary-command" id="presentationNext">下一条</button>' +
+        '<button type="button" class="secondary-command" id="presentationClose">关闭 (Esc)</button>' +
+      '</div>' +
+      '</div>' +
+      '<div class="backlog-presentation-stage" id="presentationStage">' +
+        '<div class="backlog-presentation-list" id="presentationList"></div>' +
+      '</div>' +
+      '<div class="backlog-presentation-hint">↑ / ↓ 或 J / K 切换 · 空格自动播放 · Esc 退出</div>';
+    document.body.appendChild(overlay);
+    presentationState.overlay = overlay;
+    presentationState.list = overlay.querySelector("#presentationList");
+
+    function closePresentation() { closeBacklogPresentation(); }
+    function showPrev() { focusPresentationItem(presentationState.focusIndex - 1); }
+    function showNext() { focusPresentationItem(presentationState.focusIndex + 1); }
+    function toggleAutoplay() {
+      setPresentationAutoplay(!presentationState.autoplay);
+    }
+
+    overlay.querySelector("#presentationClose").addEventListener('click', closePresentation);
+    overlay.querySelector("#presentationPrev").addEventListener('click', showPrev);
+    overlay.querySelector("#presentationNext").addEventListener('click', showNext);
+    overlay.querySelector("#presentationAutoplay").addEventListener('click', toggleAutoplay);
+
+    return overlay;
+  }
+
+  function renderBacklogPresentation() {
+    var overlay = buildBacklogPresentation();
+    var list = presentationState.list;
+    var items = (state.learningBacklog || []).slice();
+    if (!items.length) {
+      list.innerHTML = '';
+      var stage = overlay.querySelector("#presentationStage");
+      if (!stage.querySelector(".backlog-presentation-empty")) {
+        var empty = document.createElement('div');
+        empty.className = "backlog-presentation-empty";
+        empty.textContent = "暂无待学项，先添加一些内容再进入大屏展示。";
+        stage.appendChild(empty);
+      }
+      return;
+    }
+    var emptyNode = overlay.querySelector(".backlog-presentation-empty");
+    if (emptyNode) emptyNode.remove();
+    list.innerHTML = items.map(function (item, index) {
+      var title = escapeHtml(item.title || "");
+      var completed = !!item.completed;
+      return '<article class="backlog-presentation-item' + (completed ? ' completed' : '') + '" ' +
+        'data-presentation-index="' + index + '" data-presentation-id="' + item.id + '">' +
+        '<div class="backlog-presentation-index">' + (index + 1) + '</div>' +
+        '<div class="backlog-presentation-title">' + title + '</div>' +
+        '<div class="backlog-presentation-status">' + (completed ? '已学习' : '待学习') + '</div>' +
+        '</article>';
+    }).join("");
+    if (presentationState.focusIndex < 0 || presentationState.focusIndex >= items.length) {
+      presentationState.focusIndex = 0;
+    }
+    focusPresentationItem(presentationState.focusIndex, false);
+  }
+
+  function focusPresentationItem(targetIndex, scroll) {
+    if (scroll === undefined) scroll = true;
+    var list = presentationState.list;
+    if (!list) return;
+    var nodes = list.querySelectorAll(".backlog-presentation-item");
+    if (!nodes.length) {
+      presentationState.focusIndex = -1;
+      return;
+    }
+    var clamped = ((targetIndex % nodes.length) + nodes.length) % nodes.length;
+    nodes.forEach(function (node) { node.classList.remove("focus"); });
+    var active = nodes[clamped];
+    active.classList.add("focus");
+    presentationState.focusIndex = clamped;
+    if (scroll) {
+      active.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  function setPresentationAutoplay(enabled) {
+    presentationState.autoplay = !!enabled;
+    var button = presentationState.overlay && presentationState.overlay.querySelector("#presentationAutoplay");
+    if (button) button.classList.toggle("active", presentationState.autoplay);
+    if (presentationState.autoplayTimer) {
+      clearInterval(presentationState.autoplayTimer);
+      presentationState.autoplayTimer = null;
+    }
+    if (presentationState.autoplay) {
+      presentationState.autoplayTimer = setInterval(function () {
+        if (!presentationState.overlay || !presentationState.overlay.classList.contains("active")) {
+          setPresentationAutoplay(false);
+          return;
+        }
+        focusPresentationItem(presentationState.focusIndex + 1);
+      }, presentationState.autoplayDelay);
+    }
+  }
+
+  function openBacklogPresentation() {
+    if (!state.learningBacklog || !state.learningBacklog.length) {
+      showToast("暂无待学项可展示");
+      return;
+    }
+    var overlay = buildBacklogPresentation();
+    presentationState.focusIndex = 0;
+    setPresentationAutoplay(false);
+    renderBacklogPresentation();
+    overlay.classList.add("active");
+    document.addEventListener("keydown", handlePresentationKeydown);
+  }
+
+  function closeBacklogPresentation() {
+    if (presentationState.overlay) {
+      presentationState.overlay.classList.remove("active");
+    }
+    setPresentationAutoplay(false);
+    document.removeEventListener("keydown", handlePresentationKeydown);
+  }
+
+  function handlePresentationKeydown(event) {
+    if (!presentationState.overlay || !presentationState.overlay.classList.contains("active")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeBacklogPresentation();
+    } else if (event.key === "ArrowDown" || event.key === "j" || event.key === "J") {
+      event.preventDefault();
+      focusPresentationItem(presentationState.focusIndex + 1);
+    } else if (event.key === "ArrowUp" || event.key === "k" || event.key === "K") {
+      event.preventDefault();
+      focusPresentationItem(presentationState.focusIndex - 1);
+    } else if (event.key === " " || event.code === "Space") {
+      event.preventDefault();
+      setPresentationAutoplay(!presentationState.autoplay);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusPresentationItem(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      var nodes = presentationState.list ? presentationState.list.querySelectorAll(".backlog-presentation-item") : [];
+      focusPresentationItem(Math.max(0, nodes.length - 1));
+    }
   }
 
   function generateLearningSuggestions() {
@@ -1367,6 +1534,8 @@
     });
     $("#generateLearning").addEventListener("click", generateLearningSuggestions);
     $("#addLearningItem").addEventListener("click", addLearningBacklogItem);
+    var presentBtn = $("#presentBacklog");
+    if (presentBtn) presentBtn.addEventListener("click", openBacklogPresentation);
     document.addEventListener("click", function (event) {
       var toggleBtn = event.target.closest('[data-backlog-toggle]');
       if (toggleBtn) {

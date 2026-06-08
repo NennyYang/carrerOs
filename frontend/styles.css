@@ -861,6 +861,85 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.55; }
 .backlog-modal-actions button { flex: 1; }
 .backlog-modal-hint { color: var(--muted); font-size: 11px; margin: -6px 0 14px; }
 
+.panel-heading-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.panel-heading-actions .secondary-command,
+.panel-heading-actions .primary-command { height: 36px; padding: 0 14px; font-size: 12px; }
+
+.backlog-presentation-overlay {
+  position: fixed; inset: 0; z-index: 1100; display: none;
+  background: linear-gradient(180deg, #06121a 0%, #0b1d27 100%);
+  color: var(--text);
+}
+.backlog-presentation-overlay.active { display: flex; flex-direction: column; }
+.backlog-presentation-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 28px; border-bottom: 1px solid rgba(255,255,255,.08);
+  background: rgba(7, 22, 31, .82); backdrop-filter: blur(6px);
+}
+.backlog-presentation-header h2 { font-size: 18px; font-weight: 600; }
+.backlog-presentation-header .overline { color: var(--muted); font-size: 11px; letter-spacing: .12em; }
+.backlog-presentation-controls { display: flex; gap: 8px; align-items: center; }
+.backlog-presentation-controls .secondary-command { height: 36px; padding: 0 14px; font-size: 12px; }
+.backlog-presentation-controls .secondary-command.active {
+  background: var(--green); color: #071613; border-color: var(--green);
+}
+.backlog-presentation-stage {
+  flex: 1; overflow-y: auto; padding: 36px 8vw 60px;
+  scroll-behavior: smooth;
+}
+.backlog-presentation-list { display: flex; flex-direction: column; gap: 18px; }
+.backlog-presentation-item {
+  display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 20px;
+  padding: 16px 22px; border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px; background: rgba(15, 30, 40, .55);
+  font-size: 17px; line-height: 1.5; color: var(--text);
+  transition: border-color .18s, background .18s, transform .18s;
+}
+.backlog-presentation-item.focus {
+  border-color: var(--green); background: rgba(73,211,154,.08);
+  transform: translateY(-2px);
+}
+.backlog-presentation-item.completed { color: var(--muted); }
+.backlog-presentation-item.completed .backlog-presentation-title {
+  text-decoration: line-through; opacity: .65;
+}
+.backlog-presentation-index {
+  font-size: 22px; font-weight: 700; color: var(--green);
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+.backlog-presentation-item.completed .backlog-presentation-index { color: var(--muted); }
+.backlog-presentation-title { word-break: break-word; }
+.backlog-presentation-status {
+  font-size: 13px; color: var(--muted); padding: 4px 10px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.1); white-space: nowrap;
+}
+.backlog-presentation-item.completed .backlog-presentation-status {
+  color: var(--green); border-color: rgba(73,211,154,.35);
+}
+.backlog-presentation-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; color: var(--muted); font-size: 18px; padding: 60px 20px;
+}
+.backlog-presentation-hint {
+  text-align: center; color: var(--muted); font-size: 12px;
+  padding: 8px 0 16px; letter-spacing: .04em;
+}
+.backlog-presentation-progress {
+  height: 3px; background: rgba(255,255,255,.08); border-radius: 2px;
+  overflow: hidden; margin-top: 8px;
+}
+.backlog-presentation-progress > i {
+  display: block; height: 100%; width: 0; background: var(--green);
+  transition: width .25s ease;
+}
+
+@media (max-width: 760px) {
+  .backlog-presentation-stage { padding: 24px 6vw 40px; }
+  .backlog-presentation-item { grid-template-columns: 40px 1fr; font-size: 15px; padding: 12px 14px; gap: 12px; }
+  .backlog-presentation-status { grid-column: 1 / -1; justify-self: end; }
+  .backlog-presentation-index { font-size: 18px; }
+}
+
 .backlog-filter-bar { display: flex; gap: 8px; margin-bottom: 16px; }
 .backlog-filter-bar button {
   padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px;
