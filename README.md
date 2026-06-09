@@ -1,35 +1,121 @@
-# CareerOS - 职业运行舱
+# CareerOS
 
-一个为 AI 应用开发工程师设计的本地优先职业成长系统：通过技能证据、岗位需求、简历资产和每日低压力行动，让个人职业竞争力的积累过程变得可见。
+CareerOS 是一个本地优先的个人职业与 AI 项目观察系统。当前前端是原生 HTML/CSS/JavaScript 单页应用，核心首页已从旧的“运行舱”改为 **AI 速览**：每天推送一批适合普通人快速理解的 AI / GitHub / 开源项目。
 
-当前处于产品设计阶段，完整蓝图见 [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md)。
+## 当前功能
 
-## 运行前端原型
+- **AI 速览**：每天展示 9 个 AI 项目，一次只看 3 张轻量卡片。
+- **换一波看看**：从当天 9 个项目中切换下一组三张。
+- **收藏夹**：收藏感兴趣的项目，刷新页面后仍保留。
+- **搜索项目名**：展示短的原生英文项目名，方便去公众号、GitHub 或搜索引擎检索。
+- **真实数据入口**：页面读取 `frontend/data/ai-brief.json`，不再只依赖写死数据。
+- **数据抓取脚本**：`scripts/fetch_ai_brief.py` 会抓取 RadarAI、Hugging Face、GitHubDaily，并生成当天数据。
+- **其他模块**：能力图谱、市场雷达、求职护盾、精进仓库、日志等页面仍保留在系统中。
 
-第一版可视化运行舱位于 [`frontend/index.html`](./frontend/index.html)，当前使用浏览器原生 HTML/CSS/JavaScript 和模拟数据实现，无需安装依赖或启动后端。
+## AI 速览数据流
 
-直接打开 `frontend/index.html` 即可体验：
+```text
+RadarAI RSS
+Hugging Face API
+GitHubDaily 项目库
+        |
+        v
+scripts/fetch_ai_brief.py
+        |
+        v
+frontend/data/ai-brief.json
+        |
+        v
+frontend/index.html 页面展示
+```
 
-- 系统拓扑中的动态能量流。
-- 今日负载切换与行动建议变化。
-- 行动完成后证据数量、岗位覆盖和近期积累的联动更新。
-- 项目模板解析能力图谱、岗位集合扫描、简历初筛匹配与日志页面切换。
-- 基于浏览器 `localStorage` 的原型进度保存；真实登录和跨设备同步留待后端接入。
+数据源：
 
-当前设备尚未配置 Node.js；视觉方向确认后，可将这套交互迁移至 `React + TypeScript + Vite`，并接入 Python/FastAPI 后端。
+- RadarAI RSS: `https://radarai.top/feed.xml`
+- Hugging Face API: `https://huggingface.co/api/models?sort=createdAt&direction=-1&limit=30`
+- GitHubDaily: `https://raw.githubusercontent.com/GitHubDaily/GitHubDaily/master/2024.md`
 
-## 第一版目标
+脚本会尽量提取短项目名，例如 `Vanna`、`FireCrawl`、`OmniParse`、`owner/repo`，避免把文章标题当成搜索名。
 
-- 运行舱首页：显示技能状态、岗位覆盖与今日可选行动。
-- 能力图谱：以可验证证据记录能力成长。
-- 市场雷达：分析 JD 并识别目标岗位共同技能。
-- 求职护盾：对比简历与 JD，沉淀项目和面试资产。
-- 精力舱：以低压力方式记录行动、休息和每周复盘。
+## 文件说明
 
-## 推荐起步路径
+```text
+frontend/index.html              前端入口
+frontend/app.js                  页面交互与 AI 速览渲染逻辑
+frontend/styles.css              页面样式
+frontend/data/ai-brief.json      当前 AI 速览展示数据
+frontend/data/ai-brief-history.json  最近推送历史，用于减少重复
+scripts/fetch_ai_brief.py        AI 项目抓取与清洗脚本
+```
 
-第一版采用本地优先的 Python 应用，优先实现首页、技能证据库和 JD 对比；数据与体验验证成熟后，再接入实时技术信号推送和更完整的求职工作流。
+## 手动刷新 AI 速览数据
 
-## 开发导航
+在项目根目录运行：
 
-开始新增接口或页面功能前，先查看 [DEVELOPMENT.md](./DEVELOPMENT.md)。其中说明了数据库、路由、前端请求和页面交互各自应修改的位置，避免功能继续堆入单个文件。
+```powershell
+& ".venv/Scripts/python.exe" "scripts/fetch_ai_brief.py"
+```
+
+成功后会看到类似输出：
+
+```text
+Fetching RadarAI RSS...
+Fetching Hugging Face models...
+Fetching GitHubDaily archive...
+Wrote 9 items to frontend/data/ai-brief.json
+```
+
+刷新浏览器页面后，AI 速览会读取新的 `frontend/data/ai-brief.json`。
+
+## 每天 6 点自动抓取
+
+建议使用 Windows 任务计划程序，不需要启动长期后台服务。
+
+在 PowerShell 中运行：
+
+```powershell
+$action = New-ScheduledTaskAction `
+  -Execute "e:\trae projects\job_plan\.venv\Scripts\python.exe" `
+  -Argument "`"e:\trae projects\job_plan\scripts\fetch_ai_brief.py`"" `
+  -WorkingDirectory "e:\trae projects\job_plan"
+
+$trigger = New-ScheduledTaskTrigger `
+  -Daily `
+  -At 6:00AM
+
+Register-ScheduledTask `
+  -TaskName "CareerOS AI Brief Daily Fetch" `
+  -Action $action `
+  -Trigger $trigger `
+  -Description "每天早上6点抓取 AI 项目并刷新 CareerOS AI速览" `
+  -Force
+```
+
+手动测试定时任务：
+
+```powershell
+Start-ScheduledTask -TaskName "CareerOS AI Brief Daily Fetch"
+```
+
+查看任务状态：
+
+```powershell
+Get-ScheduledTaskInfo -TaskName "CareerOS AI Brief Daily Fetch"
+```
+
+## 前端运行
+
+如果已有本地静态服务，直接访问：
+
+```text
+http://localhost:&PORT/frontend/index.html
+```
+
+也可以用任意静态服务器托管项目根目录。页面本身不要求 Node.js 构建。
+
+## 说明
+
+- 前端不会展示项目地址，只展示项目名、搜索项目名、来源、真实简介和白话理解。
+- `ai-brief.json` 是页面当前展示数据；脚本每次成功运行都会覆盖它。
+- `ai-brief-history.json` 用来记录最近推过的项目，帮助每天尽量不重复。
+- 如果某个数据源网络较慢或失败，脚本会跳过该源，其他源成功时仍会生成数据。

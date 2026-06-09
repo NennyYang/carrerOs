@@ -17,5 +17,6 @@ talexus-reference/
 
 # Local visual verification output
 frontend/.edge-*/
+frontend/data/
 frontend/career-os-*.png
 .verification/
