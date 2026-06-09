@@ -91,6 +91,7 @@
     }
   }
   var state = loadState();
+  var aiBriefRemote = { loaded: false, loading: false, projects: null, date: "", error: "" };
   function saveState() {
     var snapshot = Object.assign({}, state);
     delete snapshot.learningBacklog;
@@ -120,7 +121,304 @@
     $("#loginPage").classList.remove("hidden");
   }
 
+  function normalizeAiBriefItem(item) {
+    function conciseName(value) {
+      value = String(value || "").trim();
+      var repo = value.match(/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/);
+      if (repo) return repo[0];
+      var prefix = value.split(/[:：｜|，,。]/)[0].trim();
+      if (/[A-Za-z]/.test(prefix) && prefix.length <= 34) return prefix;
+      var candidates = value.match(/\b[A-Za-z][A-Za-z0-9_.-]*(?:\s+[A-Za-z][A-Za-z0-9_.-]*){0,2}\b/g) || [];
+      for (var i = 0; i < candidates.length; i += 1) {
+        if (candidates[i] !== "AI" && candidates[i].length <= 34) return candidates[i];
+      }
+      return value.length > 24 ? value.slice(0, 24) : value;
+    }
+    var searchName = item.searchName || item.name || "AI 项目";
+    return {
+      id: item.id || item.name || ("ai-" + Math.random()),
+      name: item.name || "AI 项目",
+      searchName: conciseName(searchName),
+      source: item.source || "每日推送",
+      realSummary: item.realSummary || "",
+      one: item.one || "这是一个新的 AI 项目，适合看看能不能变成实用工具。",
+      forWho: item.forWho || "适合：想找 AI 产品灵感的人",
+      why: item.why || "它可能不是最终产品，但很适合拿来找新点子。",
+      heat: item.heat || "今日新收录",
+      take: item.take || "先收藏观察，适合以后判断能不能做成一个小产品。"
+    };
+  }
+
+  function loadAiBriefData() {
+    if (aiBriefRemote.loaded || aiBriefRemote.loading) return;
+    aiBriefRemote.loading = true;
+    window.fetch("/frontend/data/ai-brief.json?v=" + Date.now())
+      .then(function (response) {
+        if (!response.ok) throw new Error("AI brief data not found");
+        return response.json();
+      })
+      .then(function (payload) {
+        var items = Array.isArray(payload.items) ? payload.items : [];
+        aiBriefRemote.projects = items.slice(0, 9).map(normalizeAiBriefItem);
+        aiBriefRemote.date = payload.date || "";
+        aiBriefRemote.error = "";
+        aiBriefRemote.loaded = true;
+        aiBriefRemote.loading = false;
+        renderAiBriefV2();
+      })
+      .catch(function (error) {
+        aiBriefRemote.error = error.message || "AI brief data failed";
+        aiBriefRemote.loaded = true;
+        aiBriefRemote.loading = false;
+        renderAiBriefV2();
+      });
+  }
+
+  function renderAiBrief() {
+    var view = $("#view-cockpit");
+    if (!view) return;
+    var projects = [
+      {
+        name: "PPT大纲变幻灯片助手",
+        intro: "把一段文字、会议纪要或产品想法，整理成一套能继续修改的PPT骨架。",
+        audience: "经常做汇报、方案、路演材料的人。",
+        fun: "它像一个先帮你铺好第一页到最后一页的小助手，你不用再盯着空白页发呆。",
+        heat: "约 18.6k Stars，1.1k 人关注",
+        comment: "很适合以后做成WPS或Office插件，企业内部周报、销售方案、投标初稿都能用。"
+      },
+      {
+        name: "Excel表格聊天机器人",
+        intro: "你用中文问它，它帮你看表格、算数据、找异常，还能生成简单结论。",
+        audience: "做运营、财务、行政、人事、销售数据整理的人。",
+        fun: "不用会公式，也不用懂数据分析术语，直接问“这个月哪里不对劲”。",
+        heat: "约 12.3k Stars，740 人关注",
+        comment: "这是企业最容易落地的方向之一，做成表格插件会比单独的网站更好用。"
+      },
+      {
+        name: "浏览器自动办事Agent",
+        intro: "让AI打开网页、填写表单、复制资料、整理结果，替你完成重复性网页操作。",
+        audience: "每天要查资料、录信息、整理网页内容的人。",
+        fun: "它不是只会聊天，而是真的能在网页上动手干活。",
+        heat: "约 22.9k Stars，1.6k 人关注",
+        comment: "适合做成企业内部小工具，比如批量查客户资料、整理竞品信息、生成日报。"
+      },
+      {
+        name: "本地知识库问答工具",
+        intro: "把公司文档、说明书、制度、FAQ放进去，员工可以直接用中文提问。",
+        audience: "有大量内部资料、客服文档、培训材料的团队。",
+        fun: "新人不用到处问人，直接问系统“报销流程怎么走”。",
+        heat: "约 31.4k Stars，2.3k 人关注",
+        comment: "企业需求很明确，适合做成私有部署版本，重点是安全、权限和文档更新。"
+      },
+      {
+        name: "AI客服回复生成器",
+        intro: "根据客户问题、订单信息和公司话术，自动生成更像真人的客服回复。",
+        audience: "电商、售后、在线客服、社群运营团队。",
+        fun: "它能把生硬模板变成比较自然的回复，客服不用每句话都从头写。",
+        heat: "约 9.8k Stars，520 人关注",
+        comment: "产品化价值很直接，能接企业微信、飞书、客服系统就会更有用。"
+      },
+      {
+        name: "会议纪要变任务清单工具",
+        intro: "把会议录音或文字纪要，整理成结论、待办、负责人和截止时间。",
+        audience: "经常开会、做项目管理、跟进团队事项的人。",
+        fun: "开完会不用再痛苦补纪要，它先给你整理一版能看的。",
+        heat: "约 15.7k Stars，880 人关注",
+        comment: "非常适合企业办公流，接入钉钉、飞书、企业微信会更有商业价值。"
+      }
+    ];
+    var today = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+    view.innerHTML =
+      '<div class="ai-brief-page">' +
+        '<section class="ai-brief-hero">' +
+          '<p class="overline">' + escapeHtml(today) + '</p>' +
+          '<div class="ai-brief-hero-main">' +
+            '<div><h2>今天AI圈有什么新玩意？</h2>' +
+            '<p class="subtle">我已经帮你挑过了。你不用看链接、不用懂代码，扫一眼中文列表就知道这些项目能干嘛。</p></div>' +
+            '<div class="ai-brief-summary"><strong>' + projects.length + '</strong><span>个今日推荐</span></div>' +
+          '</div>' +
+        '</section>' +
+        '<section class="ai-brief-strip" aria-label="今日概览">' +
+          '<article><span>最适合做产品</span><strong>3个</strong></article>' +
+          '<article><span>办公提效相关</span><strong>4个</strong></article>' +
+          '<article><span>最热门</span><strong>知识库问答</strong></article>' +
+        '</section>' +
+        '<section class="ai-shelf" aria-label="今日AI项目推荐">' +
+          projects.map(function (project, index) {
+            return '<article class="ai-project-card">' +
+              '<div class="ai-card-rank">今日推荐 ' + (index + 1) + '</div>' +
+              '<div class="ai-card-body">' +
+                '<h3>' + escapeHtml(project.name) + '</h3>' +
+                '<p class="ai-card-intro">' + escapeHtml(project.intro) + '</p>' +
+                '<dl>' +
+                  '<div><dt>适合谁</dt><dd>' + escapeHtml(project.audience) + '</dd></div>' +
+                  '<div><dt>为什么有趣</dt><dd>' + escapeHtml(project.fun) + '</dd></div>' +
+                  '<div><dt>热度</dt><dd>' + escapeHtml(project.heat) + '</dd></div>' +
+                '</dl>' +
+                '<p class="ai-card-comment"><span>我的看法</span>' + escapeHtml(project.comment) + '</p>' +
+              '</div>' +
+            '</article>';
+          }).join("") +
+        '</section>' +
+      '</div>';
+  }
+
+  function renderAiBriefV2() {
+    var view = $("#view-cockpit");
+    if (!view) return;
+    var projects = [
+      {
+        name: "PPT自动搭架子",
+        source: "RadarAI 每日聚合",
+        one: "把一段想法变成PPT大纲和页面顺序。",
+        forWho: "适合：做汇报、方案、路演的人",
+        why: "不用从空白页开始，先给你一套能改的底稿。",
+        heat: "18.6k Stars，1.1k 人关注",
+        take: "如果做成WPS插件，会很适合企业内部汇报。"
+      },
+      {
+        name: "表格聊天助手",
+        source: "Hugging Face 今日上新",
+        one: "你用中文问，它帮你看Excel、算数据、找异常。",
+        forWho: "适合：运营、财务、行政、销售",
+        why: "不会公式也能问“这个月哪里不对劲”。",
+        heat: "12.3k Stars，740 人关注",
+        take: "这是很适合做成办公插件的方向。"
+      },
+      {
+        name: "网页自动办事",
+        source: "GitHub Trending",
+        one: "让AI打开网页、填表、复制资料、整理结果。",
+        forWho: "适合：每天查资料、录信息的人",
+        why: "它不是只聊天，而是真的能帮你点网页。",
+        heat: "22.9k Stars，1.6k 人关注",
+        take: "可以做成企业里的资料整理小工具。"
+      },
+      {
+        name: "公司资料问答",
+        source: "RadarAI 每日聚合",
+        one: "把制度、说明书、FAQ放进去，直接中文提问。",
+        forWho: "适合：资料很多、经常被问流程的团队",
+        why: "新人可以直接问“报销怎么走”。",
+        heat: "31.4k Stars，2.3k 人关注",
+        take: "企业需求很明确，私有部署会很吃香。"
+      },
+      {
+        name: "客服回复生成器",
+        source: "Hugging Face 今日上新",
+        one: "根据客户问题和公司话术，生成自然回复。",
+        forWho: "适合：电商、售后、社群运营",
+        why: "把硬邦邦的模板变成像人写的话。",
+        heat: "9.8k Stars，520 人关注",
+        take: "接企业微信、飞书或客服系统会更有用。"
+      },
+      {
+        name: "会议变待办",
+        source: "RadarAI 每日聚合",
+        one: "把会议纪要整理成结论、任务、负责人和时间。",
+        forWho: "适合：经常开会和跟项目的人",
+        why: "开完会不用再痛苦补任务清单。",
+        heat: "15.7k Stars，880 人关注",
+        take: "适合接入钉钉、飞书这类办公流。"
+      }
+    ];
+    if (aiBriefRemote.projects && aiBriefRemote.projects.length) {
+      projects = aiBriefRemote.projects;
+    }
+    state.aiBriefOffset = state.aiBriefOffset || 0;
+    state.aiFavorites = state.aiFavorites || [];
+    state.aiFavoriteItems = state.aiFavoriteItems || {};
+    var visible = [];
+    for (var i = 0; i < 3; i += 1) {
+      visible.push(projects[(state.aiBriefOffset + i) % projects.length]);
+    }
+    var featured = visible[0];
+    var today = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+
+    function card(project, index) {
+      var saved = state.aiFavorites.indexOf(project.name) !== -1;
+      return '<article class="ai-push-card ' + (index === 0 ? "featured" : "") + '">' +
+        '<div class="ai-push-top"><span>推送 ' + (index + 1) + '</span><button class="ai-save-button ' + (saved ? "saved" : "") +
+        '" data-ai-save="' + escapeHtml(project.name) + '">' + (saved ? "已收藏" : "收藏") + '</button></div>' +
+        '<h3>' + escapeHtml(project.name) + '</h3>' +
+        '<p class="ai-search-name">搜索项目名：' + escapeHtml(project.searchName || project.name) + '</p>' +
+        '<div class="ai-source-pill">' + escapeHtml(project.source || "每日推送") + '</div>' +
+        '<p class="ai-one-line">' + escapeHtml(project.realSummary || project.one) + '</p>' +
+        (project.realSummary ? '<p class="ai-plain-line">白话理解：' + escapeHtml(project.one) + '</p>' : '') +
+        '<div class="ai-push-note">' + escapeHtml(project.forWho) + '</div>' +
+        '<p class="ai-soft-line">' + escapeHtml(project.why) + '</p>' +
+        '<div class="ai-push-bottom"><span>' + escapeHtml(project.heat) + '</span></div>' +
+        '</article>';
+    }
+
+    function favoriteCard(name) {
+      var project = (state.aiFavoriteItems && state.aiFavoriteItems[name]) || projects.find(function (item) { return item.name === name; });
+      if (!project) return "";
+      return '<article class="ai-favorite-card">' +
+        '<div><h3>' + escapeHtml(project.name) + '</h3><small>搜索项目名：' + escapeHtml(project.searchName || project.name) + ' · ' + escapeHtml(project.source || "每日推送") + '</small><p>' + escapeHtml(project.realSummary || project.one) + '</p></div>' +
+        '<button class="ai-remove-favorite" data-ai-save="' + escapeHtml(project.name) + '">取消收藏</button>' +
+      '</article>';
+    }
+
+    view.innerHTML =
+      '<div class="ai-play-page">' +
+        '<section class="ai-play-hero">' +
+          '<div>' +
+            '<p class="overline">' + escapeHtml(today) + '</p>' +
+            '<h2>今天只看三张AI小卡片</h2>' +
+            '<p class="subtle">我把复杂项目先揉成很短的中文。你觉得有意思，就收藏；没感觉，就换一波。</p>' +
+          '</div>' +
+          '<div class="ai-toy-box">' +
+            '<span>今日主推</span><strong>' + escapeHtml(featured.name) + '</strong>' +
+            '<p>' + escapeHtml(featured.take) + '</p>' +
+          '</div>' +
+        '</section>' +
+        '<div class="ai-play-actions">' +
+          '<button class="primary-command" id="shuffleAiBrief">换一波看看</button>' +
+          '<span id="aiFavoriteCount">已收藏 ' + state.aiFavorites.length + ' 个</span>' +
+        '</div>' +
+        '<section class="ai-push-shelf" aria-label="今日AI项目推送">' +
+          visible.map(card).join("") +
+        '</section>' +
+        '<section class="ai-favorites-panel" aria-label="收藏夹">' +
+          '<div class="ai-favorites-head"><div><p class="overline">收藏夹</p><h3>你觉得有意思的AI小卡</h3></div><span>' + state.aiFavorites.length + ' 个</span></div>' +
+          '<div class="ai-favorites-list">' +
+            (state.aiFavorites.length ? state.aiFavorites.map(favoriteCard).join("") : '<p class="ai-favorites-empty">还没有收藏。看到顺眼的小卡，点一下收藏，它就会出现在这里。</p>') +
+          '</div>' +
+        '</section>' +
+      '</div>';
+
+    $("#shuffleAiBrief").addEventListener("click", function () {
+      state.aiBriefOffset = (state.aiBriefOffset + 3) % projects.length;
+      saveState();
+      renderAiBriefV2();
+    });
+    $$("[data-ai-save]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var name = this.dataset.aiSave;
+        var index = state.aiFavorites.indexOf(name);
+        if (index === -1) {
+          state.aiFavorites.push(name);
+          var currentProject = projects.find(function (item) { return item.name === name; });
+          if (currentProject) state.aiFavoriteItems[name] = currentProject;
+        } else {
+          state.aiFavorites.splice(index, 1);
+          if (state.aiFavoriteItems) delete state.aiFavoriteItems[name];
+        }
+        saveState();
+        renderAiBriefV2();
+        showToast(index === -1 ? "已收藏这张小卡" : "已取消收藏");
+      });
+    });
+  }
+
   function renderHeader() {
+    var navHome = $('.nav-item[data-view="cockpit"]');
+    if (navHome) navHome.textContent = "AI速览";
+    var brandOverline = $(".brand .overline");
+    if (brandOverline) brandOverline.textContent = "个人职业系统";
+    renderAiBriefV2();
+    return;
     $("#currentDate").textContent = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
     $("#evidenceTotal").textContent = state.evidence;
     $("#coverageValue").textContent = state.coverage + "%";
@@ -152,6 +450,7 @@
   }
 
   function renderAlerts() {
+    if (!$("#alertList")) return;
     var alerts = [];
     if (!state.projects.length) alerts.push({ title: "尚未添加项目档案", detail: "添加一个真实项目以开始证据追踪。", view: "skills", action: "添加项目" });
     if (!state.resumes.length) alerts.push({ title: "尚未上传简历", detail: "运行求职护盾分析前，请先上传简历。", view: "shield", action: "上传" });
@@ -1480,7 +1779,8 @@
         renderAll(true);
       });
     });
-    $("#restButton").addEventListener("click", function () {
+    var restButton = $("#restButton");
+    if (restButton) restButton.addEventListener("click", function () {
       state.energy = "rest";
       saveState();
       renderAll(true);
@@ -1626,6 +1926,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     if (state.targetJobText) $("#targetJobSelect").value = state.targetJobText;
     bindEvents();
+    loadAiBriefData();
     if (state.user) {
       showApp();
       loadLearningBacklogFromServer();

@@ -1,0 +1,120 @@
+{
+  "date": "2026-06-09",
+  "generatedAt": "2026-06-09T14:31:02.803329+00:00",
+  "sources": [
+    "RadarAI RSS",
+    "Hugging Face API",
+    "GitHubDaily"
+  ],
+  "items": [
+    {
+      "id": "77eb95ba76fad900",
+      "name": "MarkltDown",
+      "searchName": "MarkltDown",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款由微软开源的工具，可将常见文件如 Word、Excel、PPT 等转换为 Markdown 格式，支持 OCR 和 AI 模型处理多媒体文件，提供命令行、Python API 和 Docker 三种使用方式。",
+      "one": "它能帮你把想法、文档或大纲变成演示材料。",
+      "forWho": "适合：经常做办公材料、报表和汇报的人",
+      "why": "它贴近日常办公，不需要很懂技术也能想象怎么用。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "ab7408383e0fe6a4",
+      "name": "MiGPT",
+      "searchName": "MiGPT",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一个开源项目，旨在将小米小爱音箱打造成专属的 AI 语音助手，将小爱音箱和米家智能设备与 ChatGPT 等大模型的理解能力完美融合，提供 LLM 回答、角色扮演、流式响应、长短期记忆、自定义 TTS 和智能家居 Agent 等功能。",
+      "one": "它像一个可以对话的小助手，能帮人回答问题。",
+      "forWho": "适合：每天有重复操作和资料整理的人",
+      "why": "它不是只会聊天，而是能帮你做一点真正的事。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "853f7359f35b4bfc",
+      "name": "FireCrawl",
+      "searchName": "FireCrawl",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款开源且强大的 Web 爬虫工具，可爬取任何网站内容并转换为 Markdown 或结构化数据，为大语言模型训练、检索增强生成（RAG）提供数据。",
+      "one": "它能把资料变成可以提问的知识库。",
+      "forWho": "适合：资料很多、经常被问流程的团队",
+      "why": "不用翻一堆文件，直接问它就能找到重点。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "3b293c4e665dcc20",
+      "name": "voicechat2",
+      "searchName": "voicechat2",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款响应快速且完全本地化的 AI 语音聊天工具，使用 WebSockets 实现低延迟语音交互并允许远程访问，可本地运行语音识别、文本转语音和大语言模型，在 4090 显卡上延迟低至 300 毫秒。",
+      "one": "它像一个可以对话的小助手，能帮人回答问题。",
+      "forWho": "适合：想找 AI 产品灵感的人",
+      "why": "它可能不是最终产品，但很适合拿来找新点子。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "62bc7b2dfdbd757b",
+      "name": "Vanna",
+      "searchName": "Vanna",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款 SQL 生成 AI 框架，允许在自有数据上训练 RAG 模型，通过自然语言准确生成 SQL 查询语句，支持多种主流大模型，使用简单，开源可自行部署。",
+      "one": "它能把资料变成可以提问的知识库。",
+      "forWho": "适合：资料很多、经常被问流程的团队",
+      "why": "不用翻一堆文件，直接问它就能找到重点。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "a79ae6312ff55a47",
+      "name": "OmniParse",
+      "searchName": "OmniParse",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款开源工具，能够将各种非结构化数据如文档、表格、图像、视频、音频和网页转化为结构化的可操作数据，方便用于检索增强生成（RAG）和微调。",
+      "one": "它能把资料变成可以提问的知识库。",
+      "forWho": "适合：资料很多、经常被问流程的团队",
+      "why": "不用翻一堆文件，直接问它就能找到重点。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "66623e13758e9e45",
+      "name": "RAGapp",
+      "searchName": "RAGapp",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款无需编码的可视化界面工具，用于配置基于 LlamaIndex 构建的 RAG 聊天机器人，类似于 OpenAI 的 GPT 模型，可轻松部署在自有云基础设施中。",
+      "one": "它能把资料变成可以提问的知识库。",
+      "forWho": "适合：资料很多、经常被问流程的团队",
+      "why": "不用翻一堆文件，直接问它就能找到重点。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "8a539ab905c6d1ad",
+      "name": "Open WebUI",
+      "searchName": "Open WebUI",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一款专为大型语言模型（LLM）设计的可扩展且功能丰富的 Web 界面，支持运行各种 LLM 模型，包括 Ollama、OpenAI 兼容 API、Gemini、Groq、Claude 等，提供直观界面、响应式设计、代码语法高亮、Markdown 和 LaTeX 支持、本地检索增强生成（RAG）集成、多模型支持与多模态互",
+      "one": "它能把资料变成可以提问的知识库。",
+      "forWho": "适合：资料很多、经常被问流程的团队",
+      "why": "不用翻一堆文件，直接问它就能找到重点。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    },
+    {
+      "id": "6b39ff226996c0c4",
+      "name": "LLM Twin Course",
+      "searchName": "LLM Twin Course",
+      "source": "GitHubDaily 项目库",
+      "realSummary": "一门全面的大型语言模型（LLM）免费学习课程，教授如何构建生产级别的 LLM 和基于 LLM 的检索增强生成（RAG）系统，涵盖系统设计、数据工程、特征管道、训练管道和推理管道等方面。",
+      "one": "它能把资料变成可以提问的知识库。",
+      "forWho": "适合：资料很多、经常被问流程的团队",
+      "why": "不用翻一堆文件，直接问它就能找到重点。",
+      "heat": "今日新收录",
+      "take": "先收藏观察，适合以后判断能不能做成一个小产品。"
+    }
+  ],
+  "errors": []
+}
