@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CareerOS</title>
-    <link rel="stylesheet" href="/frontend/styles.css?v=57" />
+    <link rel="stylesheet" href="/frontend/styles.css?v=72" />
   </head>
   <body>
     <div class="shell">
@@ -335,6 +335,36 @@
       </main>
     </div>
 
+    <aside class="pet-agent" id="petAgent" aria-label="AI 智能体助手">
+      <button class="pet-agent-orb" id="petAgentToggle" type="button" aria-expanded="false" aria-controls="petAgentPanel">
+        <span class="pet-face">AI</span>
+        <span class="pet-status-dot"></span>
+      </button>
+      <section class="pet-agent-panel" id="petAgentPanel" aria-hidden="true">
+        <header class="pet-agent-head">
+          <div>
+            <p class="overline">桌面智能体</p>
+            <h3>CareerOS 小助手</h3>
+          </div>
+          <div class="pet-agent-tools" aria-label="智能体工具">
+            <button id="petNewChat" type="button" title="新对话" aria-label="新对话">＋</button>
+            <button id="petHistoryToggle" type="button" title="历史记录" aria-label="历史记录">☰</button>
+          </div>
+          <button class="pet-agent-collapse" id="petAgentClose" type="button" aria-label="收起智能体">×</button>
+        </header>
+        <section class="pet-history-panel" id="petHistoryPanel" hidden>
+          <div id="petHistoryList" class="pet-history-list"></div>
+        </section>
+        <div class="pet-agent-body" id="petAgentMessages">
+          <article class="pet-message agent">我可以帮你查看目前系统的进程状态，比如今天新增了什么、收藏了哪些 AI 小卡、简历评分进度、岗位能力标准积累情况。</article>
+        </div>
+        <form class="pet-agent-input" id="petAgentForm">
+          <input id="petAgentText" autocomplete="off" placeholder="问问今天的 AI 项目..." />
+          <button type="submit">发送</button>
+        </form>
+      </section>
+    </aside>
+
     <div class="toast" id="toast" role="status"></div>
 
     <div class="login-page" id="loginPage">
@@ -373,8 +403,8 @@
       </div>
     </div>
 
-    <script src="./api.js?v=46"></script>
+    <script src="./api.js?v=49"></script>
     <script src="./capability-rules.js?v=42"></script>
-    <script src="./app.js?v=57"></script>
+    <script src="./app.js?v=73"></script>
   </body>
 </html>

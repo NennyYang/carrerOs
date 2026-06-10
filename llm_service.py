@@ -120,6 +120,56 @@ def _chat_completion(payload: dict) -> dict:
         raise RuntimeError(f"LLM network request failed: {error.reason}") from error
 
 
+def _stream_chat_completion(payload: dict):
+    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY or OPENAI_API_KEY is not configured")
+
+    base_url = os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+    endpoint = f"{base_url}/chat/completions"
+    stream_payload = dict(payload)
+    stream_payload["stream"] = True
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(stream_payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8078",
+            "X-Title": "CareerOS Local Prototype",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            for raw_line in response:
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                choices = chunk.get("choices") or []
+                if not choices:
+                    continue
+                delta = choices[0].get("delta") or {}
+                content = delta.get("content")
+                if content:
+                    yield content
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        logger.error("LLM stream HTTP error: status=%s detail=%s", error.code, detail[:800])
+        raise RuntimeError(f"LLM stream request failed: {error.code} {detail}") from error
+    except urllib.error.URLError as error:
+        logger.error("LLM stream network error: %s", error.reason)
+        raise RuntimeError(f"LLM stream network request failed: {error.reason}") from error
+
+
 def analyze_project_with_llm(project_data: dict) -> dict:
     model = os.getenv("OPENAI_MODEL", "poolside/laguna-xs.2:free")
     project_name = project_data["project_name"]
@@ -181,6 +231,85 @@ def analyze_project_with_llm(project_data: dict) -> dict:
     content = body["choices"][0]["message"]["content"]
     analysis = _extract_json_object(content)
     return _validate_project_scores(analysis, body.get("model", model), project_name)
+
+
+def _build_careeros_agent_payload(
+    message: str,
+    history: list[dict] | None = None,
+    ai_cards: list[dict] | None = None,
+    career_context: str = "",
+) -> dict:
+    model = os.getenv("OPENAI_MODEL", "poolside/laguna-xs.2:free")
+    history = history or []
+    ai_cards = ai_cards or []
+    card_lines = []
+    for card in ai_cards[:9]:
+        card_lines.append(
+            "- {name} / 搜索名: {search_name} / 来源: {source} / 简介: {summary}".format(
+                name=str(card.get("name") or "")[:80],
+                search_name=str(card.get("searchName") or card.get("name") or "")[:80],
+                source=str(card.get("source") or "")[:40],
+                summary=str(card.get("realSummary") or card.get("one") or "")[:220],
+            )
+        )
+    cards_context = "\n".join(card_lines) or "当前没有可用的 AI 速览卡片。"
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是 CareerOS 里的桌面智能体小助手。"
+                "你帮助用户查看 CareerOS 当前系统进程状态，包括 AI 速览收藏、项目档案、简历评分、简历-JD匹配、学习仓库、岗位能力标准积累。"
+                "当用户问 AI 小卡时，再解释当天 AI 速览项目、判断哪些值得收藏、告诉用户应该搜索哪个英文项目名。"
+                "当用户问岗位能力标准时，必须优先使用 CareerOS 数据库上下文里的“岗位能力标准积累”。"
+                "回答必须使用简体中文，语气轻松、直接、不要长篇大论。"
+                "用户问“上次”“最近”“之前”时，优先使用 CareerOS 数据库上下文里的最近记录，不要只看今日数量。"
+                "如果上下文里有具体分数、文件名或项目名，要直接引用这些具体值。"
+                "如果用户问项目地址，不要提供 URL，只提示搜索卡片里的“搜索项目名”。"
+                "如果无法确定，明确说不确定，并给出下一步查看建议。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": (career_context or "没有读取到 CareerOS 数据库上下文。") + "\n\n今天 AI 速览卡片如下：\n" + cards_context,
+        },
+    ]
+    for item in history[-10:]:
+        role = item.get("role")
+        content = str(item.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content[:1200]})
+    messages.append({"role": "user", "content": message})
+
+    return {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.35,
+        "max_tokens": 700,
+    }
+
+
+def chat_with_careeros_agent(
+    message: str,
+    history: list[dict] | None = None,
+    ai_cards: list[dict] | None = None,
+    career_context: str = "",
+) -> dict:
+    model = os.getenv("OPENAI_MODEL", "poolside/laguna-xs.2:free")
+    payload = _build_careeros_agent_payload(message, history, ai_cards, career_context)
+    body = _chat_completion(payload)
+    answer = body["choices"][0]["message"]["content"].strip()
+    return {"answer": answer, "model": body.get("model", model)}
+
+
+def stream_careeros_agent(
+    message: str,
+    history: list[dict] | None = None,
+    ai_cards: list[dict] | None = None,
+    career_context: str = "",
+):
+    payload = _build_careeros_agent_payload(message, history, ai_cards, career_context)
+    yield from _stream_chat_completion(payload)
 
 
 def analyze_resume_with_llm(resume_data: dict) -> dict:

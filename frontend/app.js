@@ -112,12 +112,19 @@
   }
   function showApp() {
     $(".shell").classList.add("authenticated");
+    var petAgent = $("#petAgent");
+    if (petAgent) petAgent.classList.add("enabled");
     $("#loginPage").classList.add("hidden");
     $("#registerModal").classList.remove("active");
     $("#registerModal").classList.add("hidden");
   }
   function showLoginPage() {
     $(".shell").classList.remove("authenticated");
+    var petAgent = $("#petAgent");
+    if (petAgent) {
+      petAgent.classList.remove("enabled");
+      petAgent.classList.remove("open");
+    }
     $("#loginPage").classList.remove("hidden");
   }
 
@@ -172,6 +179,38 @@
         aiBriefRemote.loading = false;
         renderAiBriefV2();
       });
+  }
+
+  function cardFromFavorite(record) {
+    return normalizeAiBriefItem({
+      id: record.card_id,
+      name: record.name,
+      searchName: record.search_name,
+      source: record.source,
+      realSummary: record.real_summary,
+      one: record.one,
+      forWho: record.for_who,
+      why: record.why,
+      heat: record.heat,
+      take: record.take
+    });
+  }
+
+  function loadAiFavoritesFromServer() {
+    if (!state.user || !api || !api.listAiCardFavorites) return;
+    api.listAiCardFavorites(state.user.id).then(function (items) {
+      state.aiFavorites = [];
+      state.aiFavoriteItems = {};
+      items.forEach(function (item) {
+        var card = cardFromFavorite(item);
+        state.aiFavorites.push(card.name);
+        state.aiFavoriteItems[card.name] = card;
+      });
+      saveState();
+      renderAiBriefV2();
+    }).catch(function () {
+      showToast("收藏夹同步失败，先使用本地收藏");
+    });
   }
 
   function renderAiBrief() {
@@ -401,9 +440,26 @@
           state.aiFavorites.push(name);
           var currentProject = projects.find(function (item) { return item.name === name; });
           if (currentProject) state.aiFavoriteItems[name] = currentProject;
+          if (state.user && currentProject && api && api.saveAiCardFavorite) {
+            api.saveAiCardFavorite(state.user.id, currentProject).then(function () {
+              loadAiFavoritesFromServer();
+              showToast("已收藏到数据库");
+            }).catch(function () {
+              showToast("收藏未写入数据库，请检查后端服务");
+            });
+          }
         } else {
+          var removedProject = (state.aiFavoriteItems && state.aiFavoriteItems[name]) || projects.find(function (item) { return item.name === name; });
           state.aiFavorites.splice(index, 1);
           if (state.aiFavoriteItems) delete state.aiFavoriteItems[name];
+          if (state.user && removedProject && api && api.deleteAiCardFavorite) {
+            api.deleteAiCardFavorite(state.user.id, removedProject.id || removedProject.name).then(function () {
+              loadAiFavoritesFromServer();
+              showToast("已从数据库取消收藏");
+            }).catch(function () {
+              showToast("取消收藏未同步数据库，请检查后端服务");
+            });
+          }
         }
         saveState();
         renderAiBriefV2();
@@ -473,6 +529,30 @@
   var resumeDimensionScores = {};
   var projectTotalScores = {};
   var projectDetails = [];
+  var capabilityNameAliases = {
+    python_network: ["Python编程与网络基础", "Python 编程与网络基础"],
+    llm_prompt: ["大模型基础与Prompt工程", "大模型基础与 Prompt 工程"],
+    rag: ["RAG检索增强技术", "RAG 检索增强技术"],
+    agent_multimodal: ["AI框架、智能体与多模态集成", "AI 框架、智能体与多模态集成"],
+    backend_storage: ["后端服务与数据存储", "后端服务与数据存储开发"],
+    model_deploy: ["模型部署、推理与微调"],
+    ops_business: ["工程运维与业务交付", "工程运维与业务落地优化"]
+  };
+
+  function normalizedText(value) {
+    return String(value || "").replace(/\s+/g, "");
+  }
+
+  function capabilityAliases(skill) {
+    var aliases = [skill.name];
+    return aliases.concat(capabilityNameAliases[skill.id] || []);
+  }
+
+  function capabilityNameMatches(left, right) {
+    var a = normalizedText(left);
+    var b = normalizedText(right);
+    return a && b && (a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0);
+  }
 
   function loadResumeDimensionScores(resumeId) {
     if (!api || !api.getResumeDimensionScore) return;
@@ -512,50 +592,32 @@
     });
   }
 
-  function getResumeDimensionScoreForSkill(skillName) {
+  function getResumeDimensionScoreForSkill(skill) {
     var scores = resumeDimensionScores[state.activeResumeId] || [];
-    var found = scores.find(function (item) { return item.name === skillName; });
-    if (found) return found.score;
-    
-    var normalizedSkillName = skillName.replace(/\s+/g, "");
-    found = scores.find(function (item) { 
-      var normalizedItemName = item.name.replace(/\s+/g, "");
-      return normalizedItemName === normalizedSkillName || 
-             normalizedItemName.includes(normalizedSkillName) || 
-             normalizedSkillName.includes(normalizedItemName);
+    var aliases = capabilityAliases(skill);
+    var found = scores.find(function (item) {
+      return aliases.some(function (alias) { return capabilityNameMatches(item.name, alias); });
     });
     return found ? found.score : 0;
   }
 
-  function getProjectTotalScoreForSkill(skillName) {
+  function getProjectTotalScoreForSkill(skill) {
+    var aliases = capabilityAliases(skill);
     for (var name in projectTotalScores) {
-      if (name === skillName) {
-        return Math.round(projectTotalScores[name]);
-      }
-    }
-    
-    var normalizedSkillName = skillName.replace(/\s+/g, "");
-    for (var name in projectTotalScores) {
-      var normalizedName = name.replace(/\s+/g, "");
-      if (normalizedName === normalizedSkillName || 
-          normalizedName.includes(normalizedSkillName) || 
-          normalizedSkillName.includes(normalizedName)) {
+      if (aliases.some(function (alias) { return capabilityNameMatches(name, alias); })) {
         return Math.round(projectTotalScores[name]);
       }
     }
     return 0;
   }
 
-  function getProjectDetailsForSkill(skillName) {
+  function getProjectDetailsForSkill(skill) {
     var details = [];
-    var normalizedSkillName = skillName.replace(/\s+/g, "");
+    var aliases = capabilityAliases(skill);
     
     projectDetails.forEach(function (project) {
       project.scores.forEach(function (score) {
-        var normalizedScoreName = score.name.replace(/\s+/g, "");
-        if (normalizedScoreName === normalizedSkillName ||
-            normalizedScoreName.includes(normalizedSkillName) ||
-            normalizedSkillName.includes(normalizedScoreName)) {
+        if (aliases.some(function (alias) { return capabilityNameMatches(score.name, alias); })) {
           details.push({
             project_name: project.project_name,
             score: Math.round(score.score),
@@ -583,8 +645,8 @@
     }).join("") : '<option value="">暂无简历版本</option>';
     
     $("#skillGrid").innerHTML = state.skills.map(function (skill) {
-      var totalScore = getProjectTotalScoreForSkill(skill.name);
-      var projectDetails = getProjectDetailsForSkill(skill.name);
+      var totalScore = getProjectTotalScoreForSkill(skill);
+      var projectDetails = getProjectDetailsForSkill(skill);
       var isExpanded = expandedSkills[skill.id] || false;
       var detailsHtml = projectDetails.length ? '<footer' + (isExpanded ? '' : ' class="collapsed"') + '><div class="project-contributions">' + 
         projectDetails.map(function (item) {
@@ -596,8 +658,8 @@
         (totalScore ? '<span class="gap-badge">+' + totalScore + '</span>' : '') + '</span></header>' + detailsHtml + '</article>';
     }).join("");
     $("#capabilityCompare").innerHTML = state.skills.map(function (skill) {
-      var resumeScore = getResumeDimensionScoreForSkill(skill.name);
-      var projectScore = getProjectTotalScoreForSkill(skill.name);
+      var resumeScore = getResumeDimensionScoreForSkill(skill);
+      var projectScore = getProjectTotalScoreForSkill(skill);
       var totalScore = resumeScore + projectScore;
       var progressBar = totalScore > 0 ? '<i style="width: ' + totalScore + '%"></i>' : '';
       return '<div class="compare-row"><span>' + escapeHtml(skill.name) + '</span><i style="--level:' + skill.level +
@@ -1738,6 +1800,210 @@
     });
   }
 
+  function bindPetAgent() {
+    var agent = $("#petAgent");
+    var toggle = $("#petAgentToggle");
+    var close = $("#petAgentClose");
+    var panel = $("#petAgentPanel");
+    var form = $("#petAgentForm");
+    var input = $("#petAgentText");
+    var messages = $("#petAgentMessages");
+    var newChat = $("#petNewChat");
+    var historyToggle = $("#petHistoryToggle");
+    var historyPanel = $("#petHistoryPanel");
+    var historyList = $("#petHistoryList");
+    if (!agent || !toggle || !panel || !form || !input || !messages) return;
+    state.petChatHistory = state.petChatHistory || [];
+
+    function seedConversation() {
+      messages.innerHTML = '<article class="pet-message agent">新对话已开始。我可以帮你查看目前系统的进程状态，比如今天新增了什么、收藏了哪些 AI 小卡、简历评分进度、岗位能力标准积累情况。</article>';
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function setOpen(open) {
+      agent.classList.toggle("open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.setAttribute("aria-hidden", open ? "false" : "true");
+      if (open) window.setTimeout(function () { input.focus(); }, 80);
+    }
+
+    function addMessage(text, type) {
+      var item = document.createElement("article");
+      item.className = "pet-message " + type;
+      item.textContent = text;
+      messages.appendChild(item);
+      messages.scrollTop = messages.scrollHeight;
+      return item;
+    }
+
+    function collectChatHistory() {
+      return $$("#petAgentMessages .pet-message").slice(-12).map(function (item) {
+        return {
+          role: item.classList.contains("user") ? "user" : "assistant",
+          content: item.textContent || ""
+        };
+      }).filter(function (item) { return item.content.trim(); });
+    }
+
+    function askAgent(text) {
+      if (!api || !api.agentChat) {
+        return Promise.resolve({ answer: replyTo(text), model: "local-fallback" });
+      }
+      return api.agentChat({
+        user_id: state.user ? state.user.id : null,
+        message: text,
+        history: collectChatHistory(),
+        ai_cards: currentAiItems().slice(0, 9)
+      }).then(null, function () {
+        return { answer: replyTo(text), model: "local-fallback" };
+      });
+    }
+
+    function askAgentStream(text, target) {
+      if (!api || !api.agentChatStream || !window.TextDecoder) {
+        return askAgent(text).then(function (result) {
+          return result.answer || replyTo(text);
+        });
+      }
+      return api.agentChatStream({
+        user_id: state.user ? state.user.id : null,
+        message: text,
+        history: collectChatHistory(),
+        ai_cards: currentAiItems().slice(0, 9)
+      }).then(function (response) {
+        if (!response.ok || !response.body) throw new Error("Agent stream failed");
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder("utf-8");
+        var answer = "";
+
+        function read() {
+          return reader.read().then(function (result) {
+            if (result.done) {
+              answer += decoder.decode();
+              return answer;
+            }
+            answer += decoder.decode(result.value, { stream: true });
+            target.textContent = answer || "正在整理...";
+            messages.scrollTop = messages.scrollHeight;
+            return read();
+          });
+        }
+
+        return read();
+      }).then(null, function () {
+        return askAgent(text).then(function (result) {
+          return result.answer || replyTo(text);
+        });
+      });
+    }
+
+    function renderHistory() {
+      if (!historyList) return;
+      if (!state.petChatHistory.length) {
+        historyList.innerHTML = '<p class="pet-history-empty">还没有新的对话记录。</p>';
+        return;
+      }
+      var nowDate = new Date();
+      var startOfToday = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()).getTime();
+      var startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
+      var startOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+      var groups = [
+        { title: "今天", items: [] },
+        { title: "本周内", items: [] },
+        { title: "本月内", items: [] }
+      ];
+      state.petChatHistory.slice(0, 30).forEach(function (item, index) {
+        var time = item.at ? new Date(item.at).getTime() : 0;
+        var entry = Object.assign({ index: index }, item);
+        if (time >= startOfToday) groups[0].items.push(entry);
+        else if (time >= startOfWeek) groups[1].items.push(entry);
+        else if (time >= startOfMonth) groups[2].items.push(entry);
+      });
+      historyList.innerHTML = groups.map(function (group, groupIndex) {
+        if (!group.items.length) return "";
+        return (groupIndex ? '<div class="pet-history-divider"></div>' : '') +
+          '<div class="pet-history-group">' + group.title + '</div>' +
+          group.items.map(function (item) {
+            return '<div class="pet-history-row">' +
+              '<button class="pet-history-item" type="button" data-pet-history="' + item.index + '">' +
+              escapeHtml(item.question) + '</button>' +
+              '<button class="pet-history-delete" type="button" data-pet-history-delete="' + item.index + '" aria-label="删除历史">×</button>' +
+              '</div>';
+          }).join("");
+      }).join("") || '<p class="pet-history-empty">本月还没有对话记录。</p>';
+      $$("[data-pet-history-delete]").forEach(function (button) {
+        button.addEventListener("click", function (event) {
+          event.stopPropagation();
+          var index = Number(this.dataset.petHistoryDelete);
+          state.petChatHistory.splice(index, 1);
+          saveState();
+          renderHistory();
+        });
+      });
+      $$("[data-pet-history]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var item = state.petChatHistory[Number(this.dataset.petHistory)];
+          if (!item) return;
+          addMessage(item.question, "user");
+          addMessage(item.answer, "agent");
+          if (historyPanel) historyPanel.hidden = true;
+          if (historyToggle) historyToggle.classList.remove("active");
+        });
+      });
+    }
+
+    function currentAiItems() {
+      if (aiBriefRemote.projects && aiBriefRemote.projects.length) return aiBriefRemote.projects;
+      return [];
+    }
+
+    function replyTo(text) {
+      var items = currentAiItems();
+      var first = items[state.aiBriefOffset || 0] || items[0];
+      if (/收藏|值得|推荐|哪个好/.test(text) && first) {
+        return "我会先看 " + (first.searchName || first.name) + "。它的名字短，方便搜索，而且今天这张卡片排在前面，适合先收藏观察。";
+      }
+      if (/解释|看不懂|是什么/.test(text) && first) {
+        return (first.searchName || first.name) + " 可以先理解成：" + (first.one || "一个值得观察的 AI 项目");
+      }
+      if (/项目名|搜索|公众号/.test(text) && first) {
+        return "你可以优先搜这一行：" + (first.searchName || first.name) + "。我会尽量保留英文原生名，避免翻译后搜不到。";
+      }
+      return "我先给你一个简单判断：优先看项目名短、用途清楚、能放进办公流程里的项目。比如知识库问答、网页自动办事、可视化工具这类，更容易变成真实产品。";
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(!agent.classList.contains("open"));
+    });
+    if (close) close.addEventListener("click", function () { setOpen(false); });
+    if (newChat) newChat.addEventListener("click", function () {
+      seedConversation();
+      showToast("已新建对话");
+    });
+    if (historyToggle && historyPanel) historyToggle.addEventListener("click", function () {
+      var willOpen = historyPanel.hidden;
+      historyPanel.hidden = !willOpen;
+      historyToggle.classList.toggle("active", willOpen);
+      if (willOpen) renderHistory();
+    });
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      addMessage(text, "user");
+      var thinking = addMessage("我想一下...", "agent");
+      askAgentStream(text, thinking).then(function (answer) {
+        answer = answer || replyTo(text);
+        thinking.textContent = answer;
+        state.petChatHistory.unshift({ question: text, answer: answer, at: now() });
+        state.petChatHistory = state.petChatHistory.slice(0, 20);
+        saveState();
+        renderHistory();
+      });
+    });
+  }
+
   function renderAll(keepDraft) {
     renderHeader();
     renderAlerts();
@@ -1886,6 +2152,8 @@
           loadLearningBacklogFromServer();
           loadResumesFromServer();
           loadMatchHistoryFromServer();
+          loadAiFavoritesFromServer();
+          loadProjectDimensionScoresTotal();
           renderAll();
           showToast("Login ok");
         } else {
@@ -1914,6 +2182,8 @@
           loadLearningBacklogFromServer();
           loadResumesFromServer();
           loadMatchHistoryFromServer();
+          loadAiFavoritesFromServer();
+          loadProjectDimensionScoresTotal();
           renderAll();
           showToast("Register ok");
         } else {
@@ -1926,18 +2196,20 @@
   document.addEventListener("DOMContentLoaded", function () {
     if (state.targetJobText) $("#targetJobSelect").value = state.targetJobText;
     bindEvents();
+    bindPetAgent();
     loadAiBriefData();
     if (state.user) {
       showApp();
       loadLearningBacklogFromServer();
       loadResumesFromServer();
       loadMatchHistoryFromServer();
+      loadAiFavoritesFromServer();
+      loadProjectDimensionScoresTotal();
     }
     else showLoginPage();
     if (state.activeResumeId) {
       loadResumeDimensionScores(state.activeResumeId);
     }
-    loadProjectDimensionScoresTotal();
     renderAll();
   });
 }());

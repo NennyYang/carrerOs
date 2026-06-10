@@ -120,3 +120,26 @@ class LearningBacklog(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class AICardFavorite(Base):
+    __tablename__ = "ai_card_favorites"
+    __table_args__ = (
+        UniqueConstraint("user_id", "card_id", name="uq_user_ai_card_favorite"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    card_id = Column(String(120), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    search_name = Column(String(200), nullable=False)
+    source = Column(String(120), nullable=True)
+    real_summary = Column(Text, nullable=True)
+    one = Column(Text, nullable=True)
+    for_who = Column(Text, nullable=True)
+    why = Column(Text, nullable=True)
+    heat = Column(String(120), nullable=True)
+    take = Column(Text, nullable=True)
+    raw_payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

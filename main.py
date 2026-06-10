@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from database import init_db
 from routes.auth import router as auth_router
 from routes.capabilities import router as capabilities_router
+from routes.agent import router as agent_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,6 +27,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(capabilities_router)
+app.include_router(agent_router)
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 app.mount("/assets", StaticFiles(directory="frontend"), name="assets")
 

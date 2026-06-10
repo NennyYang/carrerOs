@@ -272,3 +272,56 @@ class LearningBacklogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AgentChatMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant|system)$")
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class AgentChatRequest(BaseModel):
+    user_id: Optional[int] = None
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[AgentChatMessage] = Field(default_factory=list, max_length=20)
+    ai_cards: list[dict] = Field(default_factory=list, max_length=9)
+
+
+class AgentChatResponse(BaseModel):
+    answer: str
+    model: str = Field(default="")
+
+
+class AICardFavoriteCreate(BaseModel):
+    user_id: int
+    card_id: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=200)
+    search_name: str = Field(default="", max_length=200)
+    source: str = Field(default="", max_length=120)
+    real_summary: str = Field(default="")
+    one: str = Field(default="")
+    for_who: str = Field(default="")
+    why: str = Field(default="")
+    heat: str = Field(default="", max_length=120)
+    take: str = Field(default="")
+    raw_payload: dict = Field(default_factory=dict)
+
+
+class AICardFavoriteResponse(BaseModel):
+    id: int
+    user_id: int
+    card_id: str
+    name: str
+    search_name: str
+    source: Optional[str] = ""
+    real_summary: Optional[str] = ""
+    one: Optional[str] = ""
+    for_who: Optional[str] = ""
+    why: Optional[str] = ""
+    heat: Optional[str] = ""
+    take: Optional[str] = ""
+    raw_payload: Optional[dict] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

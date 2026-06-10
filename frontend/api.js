@@ -159,6 +159,41 @@
       return del("/api/capabilities/learning-backlog/" + encodeURIComponent(itemId) +
         "?user_id=" + encodeURIComponent(userId))
         .then(function (response) { return requireOk(response, "Learning backlog delete failed"); });
+    },
+    agentChat: function (payload) {
+      return post("/api/agent/chat", payload)
+        .then(function (response) { return requireOk(response, "Agent chat failed"); });
+    },
+    agentChatStream: function (payload) {
+      return fetch(API_BASE + "/api/agent/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    },
+    listAiCardFavorites: function (userId) {
+      return get("/api/agent/favorites?user_id=" + encodeURIComponent(userId))
+        .then(function (response) { return requireOk(response, "AI favorites list failed"); });
+    },
+    saveAiCardFavorite: function (userId, card) {
+      return post("/api/agent/favorites", {
+        user_id: userId,
+        card_id: card.id || card.name,
+        name: card.name,
+        search_name: card.searchName || card.name,
+        source: card.source || "",
+        real_summary: card.realSummary || "",
+        one: card.one || "",
+        for_who: card.forWho || "",
+        why: card.why || "",
+        heat: card.heat || "",
+        take: card.take || "",
+        raw_payload: card
+      }).then(function (response) { return requireOk(response, "AI favorite save failed"); });
+    },
+    deleteAiCardFavorite: function (userId, cardId) {
+      return del("/api/agent/favorites/" + encodeURIComponent(cardId) + "?user_id=" + encodeURIComponent(userId))
+        .then(function (response) { return response.result; });
     }
   };
 }());

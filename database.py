@@ -17,6 +17,7 @@ def get_db():
 
 def init_db():
     from models import (
+        AICardFavorite,
         JobSkill,
         LearningBacklog,
         ProjectCapabilityProfile,
